@@ -1,0 +1,385 @@
+{
+  "name": "E - Thursday Menu Reminder & Friday Escalation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 4"
+            }
+          ]
+        }
+      },
+      "id": "e1000001-0001-4000-8000-000000000001",
+      "name": "Cron - Thursday 8AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 340],
+      "notesInFlow": true,
+      "notes": "Every Thursday at 08:00 ICT (UTC+7)\nAdjust cron if server timezone ≠ ICT:\n0 1 * * 4 for UTC"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate current week's Monday date for lookup\nconst now = new Date();\nconst dayOfWeek = now.getDay();\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));\n\n// Format as DD/MM/YYYY to match Sheet format\nconst dd = String(monday.getDate()).padStart(2, '0');\nconst mm = String(monday.getMonth() + 1).padStart(2, '0');\nconst yyyy = monday.getFullYear();\n\n// Also calculate the whole week range for searching\nconst weekDates = [];\nfor (let i = 0; i < 5; i++) {\n  const d = new Date(monday);\n  d.setDate(monday.getDate() + i);\n  weekDates.push(\n    String(d.getDate()).padStart(2, '0') + '/' +\n    String(d.getMonth() + 1).padStart(2, '0') + '/' +\n    d.getFullYear()\n  );\n}\n\nreturn [{\n  json: {\n    week_start: `${dd}/${mm}/${yyyy}`,\n    week_dates: weekDates,\n    check_type: 'thursday_reminder'\n  }\n}];"
+      },
+      "id": "e1000001-0001-4000-8000-000000000002",
+      "name": "Calculate Week Dates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 340]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "id",
+          "cachedResultName": "Thực đơn"
+        },
+        "options": {
+          "range": "A:L"
+        }
+      },
+      "id": "e1000001-0001-4000-8000-000000000003",
+      "name": "Read Menu Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [680, 340],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CREDENTIAL_ID_SHEETS",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if this week's menu entries exist and have content\nconst weekDates = $('Calculate Week Dates').first().json.week_dates;\nconst allRows = $input.all().map(item => item.json);\n\nconst missingDays = [];\nconst filledDays = [];\n\nfor (const date of weekDates) {\n  const row = allRows.find(r => r['Ngày'] === date);\n  if (!row || !row['Nội dung'] || row['Nội dung'].toString().trim() === '') {\n    missingDays.push(date);\n  } else {\n    filledDays.push(date);\n  }\n}\n\nreturn [{\n  json: {\n    has_missing: missingDays.length > 0,\n    missing_days: missingDays,\n    filled_days: filledDays,\n    missing_count: missingDays.length,\n    total_days: weekDates.length,\n    summary: missingDays.length > 0\n      ? `Thiếu thực đơn cho ${missingDays.length}/${weekDates.length} ngày: ${missingDays.join(', ')}`\n      : `Đã có đủ thực đơn cho cả tuần (${weekDates.length} ngày)`\n  }\n}];"
+      },
+      "id": "e1000001-0001-4000-8000-000000000004",
+      "name": "Check Missing Menus",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 340]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-missing",
+              "leftValue": "={{ $json.has_missing }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e1000001-0001-4000-8000-000000000005",
+      "name": "IF - Menu Missing",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1160, 340]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $vars.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn' }}",
+        "subject": "=[NHẮC NHỞ] Thực đơn tuần này chưa đầy đủ - Victoria TL3",
+        "emailType": "html",
+        "message": "=<h2>📋 Nhắc nhở nhập thực đơn</h2>\n<p>Xin chào,</p>\n<p>Hệ thống kiểm tra thấy thực đơn tuần này <strong>chưa đầy đủ</strong>.</p>\n<p><strong>{{ $json.summary }}</strong></p>\n<h3>Ngày thiếu:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Vui lòng cập nhật thực đơn vào <a href=\"https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit\">bảng dữ liệu</a> trước cuối ngày hôm nay.</p>\n<p><em>Nếu không cập nhật trước 12:00 thứ Sáu, hệ thống sẽ thông báo đến Hiệu trưởng.</em></p>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3.</em></p>",
+        "options": {}
+      },
+      "id": "e1000001-0001-4000-8000-000000000006",
+      "name": "Gmail - Thursday Reminder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1400, 240],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CREDENTIAL_ID_GMAIL",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 28,
+        "unit": "hours"
+      },
+      "id": "e1000001-0001-4000-8000-000000000007",
+      "name": "Wait - Until Friday Noon",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1640, 240],
+      "webhookId": "e-wait-friday"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "id",
+          "cachedResultName": "Thực đơn"
+        },
+        "options": {
+          "range": "A:L"
+        }
+      },
+      "id": "e1000001-0001-4000-8000-000000000008",
+      "name": "Re-Read Menu Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1880, 240],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CREDENTIAL_ID_SHEETS",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Re-check after waiting — same logic as Thursday check\nconst weekDates = $('Calculate Week Dates').first().json.week_dates;\nconst allRows = $input.all().map(item => item.json);\n\nconst stillMissing = [];\nfor (const date of weekDates) {\n  const row = allRows.find(r => r['Ngày'] === date);\n  if (!row || !row['Nội dung'] || row['Nội dung'].toString().trim() === '') {\n    stillMissing.push(date);\n  }\n}\n\nreturn [{\n  json: {\n    still_missing: stillMissing.length > 0,\n    missing_days: stillMissing,\n    missing_count: stillMissing.length\n  }\n}];"
+      },
+      "id": "e1000001-0001-4000-8000-000000000009",
+      "name": "Re-Check Missing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2120, 240]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-still-missing",
+              "leftValue": "={{ $json.still_missing }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e1000001-0001-4000-8000-000000000010",
+      "name": "IF - Still Missing Friday",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2340, 240]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $vars.HIEU_TRUONG_EMAIL || 'hieutruong@victoria.edu.vn' }}",
+        "ccEmails": "={{ $vars.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn' }}",
+        "subject": "=[KHẨN] Thực đơn tuần này vẫn chưa được cập nhật - Victoria TL3",
+        "emailType": "html",
+        "message": "=<h2>🚨 Cảnh báo: Thực đơn chưa được cập nhật</h2>\n<p>Kính gửi Hiệu trưởng,</p>\n<p>Sau khi nhắc nhở vào thứ Năm, thực đơn tuần này <strong>vẫn chưa được cập nhật đầy đủ</strong>.</p>\n<h3>Ngày còn thiếu:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Theo quy trình TT 09/2024, thực đơn cần được công khai trên website trường. Vui lòng phối hợp với bộ phận bán trú để hoàn tất.</p>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3. Bộ phận bán trú đã được CC.</em></p>",
+        "options": {}
+      },
+      "id": "e1000001-0001-4000-8000-000000000011",
+      "name": "Gmail - Friday Escalation",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [2580, 140],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CREDENTIAL_ID_GMAIL",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "e1000001-0001-4000-8000-000000000012",
+      "name": "No Op - All Good Thursday",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1400, 460]
+    },
+    {
+      "parameters": {},
+      "id": "e1000001-0001-4000-8000-000000000013",
+      "name": "No Op - Resolved By Friday",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2580, 360]
+    }
+  ],
+  "connections": {
+    "Cron - Thursday 8AM": {
+      "main": [
+        [
+          {
+            "node": "Calculate Week Dates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Week Dates": {
+      "main": [
+        [
+          {
+            "node": "Read Menu Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Menu Sheet": {
+      "main": [
+        [
+          {
+            "node": "Check Missing Menus",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Missing Menus": {
+      "main": [
+        [
+          {
+            "node": "IF - Menu Missing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Menu Missing": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Thursday Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Op - All Good Thursday",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Thursday Reminder": {
+      "main": [
+        [
+          {
+            "node": "Wait - Until Friday Noon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait - Until Friday Noon": {
+      "main": [
+        [
+          {
+            "node": "Re-Read Menu Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-Read Menu Sheet": {
+      "main": [
+        [
+          {
+            "node": "Re-Check Missing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-Check Missing": {
+      "main": [
+        [
+          {
+            "node": "IF - Still Missing Friday",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Still Missing Friday": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Friday Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Op - Resolved By Friday",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "e-reminder-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": ""
+  },
+  "tags": [
+    {"name": "victoria-tl3"},
+    {"name": "reminder"}
+  ],
+  "pinData": {}
+}
