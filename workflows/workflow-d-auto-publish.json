@@ -21,9 +21,10 @@
           "mode": "id",
           "cachedResultName": "Thực đơn"
         },
-        "triggerOn": "specificColumn",
-        "columnToWatch": "G",
-        "options": {}
+        "event": "rowUpdate",
+        "options": {
+          "columnsToWatch": ["Duyệt"]
+        }
       },
       "id": "d1000001-0001-4000-8000-000000000001",
       "name": "Sheets Trigger - Approval Changed",
@@ -31,9 +32,9 @@
       "typeVersion": 1,
       "position": [200, 340],
       "credentials": {
-        "googleSheetsOAuth2Api": {
+        "googleSheetsTriggerOAuth2Api": {
           "id": "CREDENTIAL_ID_SHEETS",
-          "name": "Google Sheets OAuth2"
+          "name": "Google Sheets Trigger OAuth2"
         }
       }
     },
@@ -48,20 +49,22 @@
           "conditions": [
             {
               "id": "cond-approved",
-              "leftValue": "={{ $json['Duyệt'] }}",
-              "rightValue": "TRUE",
+              "leftValue": "={{ $json['Duyệt'] === true }}",
+              "rightValue": true,
               "operator": {
-                "type": "string",
-                "operation": "equals"
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
               }
             },
             {
               "id": "cond-not-posted",
-              "leftValue": "={{ $json['Đã đăng'] }}",
-              "rightValue": "TRUE",
+              "leftValue": "={{ $json['Đã đăng'] !== true }}",
+              "rightValue": true,
               "operator": {
-                "type": "string",
-                "operation": "notEquals"
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
               }
             }
           ],
@@ -273,7 +276,7 @@
             "URL bài đăng": "={{ $json.post_url }}",
             "Ghi chú": "={{ $json.publish_method }} - {{ $now.toISO() }}"
           },
-          "matchingColumns": ["Ngày"],
+          "matchingColumns": ["row_number"],
           "schema": [
             {"id": "Đã đăng", "displayName": "Đã đăng", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
             {"id": "URL bài đăng", "displayName": "URL bài đăng", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},

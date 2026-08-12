@@ -1,0 +1,13 @@
+# Markdown files
+*.md
+
+# Dependencies
+node_modules/
+
+# AI coding assistant configs
+opencode.json
+.claude/
+.claude.json
+AGENTS.md
+
+

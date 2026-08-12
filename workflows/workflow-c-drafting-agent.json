@@ -21,8 +21,7 @@
           "mode": "id",
           "cachedResultName": "Thực đơn"
         },
-        "triggerOn": "specificColumn",
-        "columnToWatch": "B",
+        "event": "anyUpdate",
         "options": {}
       },
       "id": "c1000001-0001-4000-8000-000000000001",
@@ -31,9 +30,9 @@
       "typeVersion": 1,
       "position": [200, 340],
       "credentials": {
-        "googleSheetsOAuth2Api": {
+        "googleSheetsTriggerOAuth2Api": {
           "id": "CREDENTIAL_ID_SHEETS",
-          "name": "Google Sheets OAuth2"
+          "name": "Google Sheets Trigger OAuth2"
         }
       }
     },
@@ -139,7 +138,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse the AI agent output (JSON string) into structured fields\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  let output = item.json.output || item.json.text || '';\n  \n  // Try to extract JSON from the response\n  let parsed;\n  try {\n    // Try direct parse first\n    parsed = JSON.parse(output);\n  } catch (e) {\n    // Try to find JSON in the response\n    const jsonMatch = output.match(/\\{[\\s\\S]*?\"ban_website\"[\\s\\S]*?\\}/);\n    if (jsonMatch) {\n      try {\n        parsed = JSON.parse(jsonMatch[0]);\n      } catch (e2) {\n        parsed = {\n          ban_website: output,\n          ban_zalo: output,\n          ban_facebook: output\n        };\n      }\n    } else {\n      parsed = {\n        ban_website: output,\n        ban_zalo: output,\n        ban_facebook: output\n      };\n    }\n  }\n  \n  results.push({\n    json: {\n      ban_website: parsed.ban_website || '',\n      ban_zalo: parsed.ban_zalo || '',\n      ban_facebook: parsed.ban_facebook || '',\n      row_number: item.json.row_number || item.json['row_number'] || ''\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "// Parse the AI agent output (JSON string) into structured fields\nconst items = $input.all();\nconst sourceItems = $('IF - Drafts Empty').all();\nconst results = [];\n\nfor (let index = 0; index < items.length; index++) {\n  const item = items[index];\n  let output = item.json.output || item.json.text || '';\n  \n  // Try to extract JSON from the response\n  let parsed;\n  try {\n    parsed = JSON.parse(output);\n  } catch (e) {\n    const jsonMatch = output.match(/\\{[\\s\\S]*?\"ban_website\"[\\s\\S]*?\\}/);\n    if (jsonMatch) {\n      try {\n        parsed = JSON.parse(jsonMatch[0]);\n      } catch (e2) {\n        parsed = {\n          ban_website: output,\n          ban_zalo: output,\n          ban_facebook: output\n        };\n      }\n    } else {\n      parsed = {\n        ban_website: output,\n        ban_zalo: output,\n        ban_facebook: output\n      };\n    }\n  }\n  \n  // Recover row_number from the IF node's true-branch items\n  // (the agent drops input fields, so we look up the source row)\n  const srcIndex = Math.min(index, sourceItems.length - 1);\n  const rowNumber = sourceItems[srcIndex]?.json?.row_number ?? '';\n  \n  results.push({\n    json: {\n      ban_website: parsed.ban_website || '',\n      ban_zalo: parsed.ban_zalo || '',\n      ban_facebook: parsed.ban_facebook || '',\n      row_number: rowNumber\n    }\n  });\n}\n\nreturn results;"
       },
       "id": "c1000001-0001-4000-8000-000000000007",
       "name": "Parse AI Output",
@@ -168,7 +167,7 @@
             "Bản Zalo": "={{ $json.ban_zalo }}",
             "Bản Facebook": "={{ $json.ban_facebook }}"
           },
-          "matchingColumns": ["Ngày"],
+          "matchingColumns": ["row_number"],
           "schema": [
             {"id": "Bản website", "displayName": "Bản website", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
             {"id": "Bản Zalo", "displayName": "Bản Zalo", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
