@@ -35,7 +35,7 @@
         "operation": "read",
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID",
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
           "mode": "id"
         },
         "sheetName": {
@@ -55,7 +55,7 @@
       "position": [680, 340],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "CREDENTIAL_ID_SHEETS",
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
           "name": "Google Sheets OAuth2"
         }
       }
@@ -105,7 +105,7 @@
         "sendTo": "={{ $vars.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn' }}",
         "subject": "=[NHẮC NHỞ] Thực đơn tuần này chưa đầy đủ - Victoria TL3",
         "emailType": "html",
-        "message": "=<h2>📋 Nhắc nhở nhập thực đơn</h2>\n<p>Xin chào,</p>\n<p>Hệ thống kiểm tra thấy thực đơn tuần này <strong>chưa đầy đủ</strong>.</p>\n<p><strong>{{ $json.summary }}</strong></p>\n<h3>Ngày thiếu:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Vui lòng cập nhật thực đơn vào <a href=\"https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit\">bảng dữ liệu</a> trước cuối ngày hôm nay.</p>\n<p><em>Nếu không cập nhật trước 12:00 thứ Sáu, hệ thống sẽ thông báo đến Hiệu trưởng.</em></p>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3.</em></p>",
+        "message": "=<h2>📋 Nhắc nhở nhập thực đơn</h2>\n<p>Xin chào,</p>\n<p>Hệ thống kiểm tra thấy thực đơn tuần này <strong>chưa đầy đủ</strong>.</p>\n<p><strong>{{ $json.summary }}</strong></p>\n<h3>Ngày thiếu:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Vui lòng cập nhật thực đơn vào <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit\">bảng dữ liệu</a> trước cuối ngày hôm nay.</p>\n<p><em>Nếu không cập nhật trước 12:00 thứ Sáu, hệ thống sẽ thông báo đến Hiệu trưởng.</em></p>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3.</em></p>",
         "options": {}
       },
       "id": "e1000001-0001-4000-8000-000000000006",
@@ -115,7 +115,7 @@
       "position": [1400, 240],
       "credentials": {
         "gmailOAuth2": {
-          "id": "CREDENTIAL_ID_GMAIL",
+          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
           "name": "Gmail OAuth2"
         }
       }
@@ -137,7 +137,7 @@
         "operation": "read",
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID",
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
           "mode": "id"
         },
         "sheetName": {
@@ -157,7 +157,7 @@
       "position": [1880, 240],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "CREDENTIAL_ID_SHEETS",
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
           "name": "Google Sheets OAuth2"
         }
       }
@@ -218,7 +218,7 @@
       "position": [2580, 140],
       "credentials": {
         "gmailOAuth2": {
-          "id": "CREDENTIAL_ID_GMAIL",
+          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
           "name": "Gmail OAuth2"
         }
       }

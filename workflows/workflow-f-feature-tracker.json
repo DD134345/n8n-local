@@ -1,0 +1,83 @@
+{
+  "name": "F - Feature Request Tracker",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "feature-request",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "f1000001-0001-4000-8000-000000000001",
+      "name": "Webhook Feature Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 340],
+      "notesInFlow": true,
+      "notes": "POST http://localhost:5678/webhook/feature-request\nBody: { title, description, priority, requester }"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst now = new Date();\nreturn [{\n  json: {\n    'Ngày tạo': now.toLocaleDateString('vi-VN'),\n    'Tên tính năng': body.title || '(không có tên)',\n    'Mô tả': body.description || '',\n    'Ưu tiên': body.priority || 'medium',\n    'Người yêu cầu': body.requester || 'dashboard',\n    'Trạng thái': 'Chờ xử lý'\n  }\n}];"
+      },
+      "id": "f1000001-0001-4000-8000-000000000002",
+      "name": "Format Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 340]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Features",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData"
+        },
+        "options": {}
+      },
+      "id": "f1000001-0001-4000-8000-000000000003",
+      "name": "Append to Features Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [680, 340],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ok: true, message: 'Đã ghi nhận yêu cầu tính năng' } }];"
+      },
+      "id": "f1000001-0001-4000-8000-000000000004",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 340]
+    }
+  ],
+  "connections": {
+    "Webhook Feature Request": {
+      "main": [[{ "node": "Format Row", "type": "main", "index": 0 }]]
+    },
+    "Format Row": {
+      "main": [[{ "node": "Append to Features Sheet", "type": "main", "index": 0 }]]
+    },
+    "Append to Features Sheet": {
+      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}

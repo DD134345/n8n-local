@@ -12,7 +12,7 @@
         },
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID",
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
           "mode": "id"
         },
         "sheetName": {
@@ -33,7 +33,7 @@
       "position": [200, 340],
       "credentials": {
         "googleSheetsTriggerOAuth2Api": {
-          "id": "CREDENTIAL_ID_SHEETS",
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
           "name": "Google Sheets Trigger OAuth2"
         }
       }
@@ -198,7 +198,7 @@
       "position": [920, 460],
       "credentials": {
         "gmailOAuth2": {
-          "id": "CREDENTIAL_ID_GMAIL",
+          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
           "name": "Gmail OAuth2"
         }
       }
@@ -250,7 +250,7 @@
       "position": [1160, 300],
       "credentials": {
         "gmailOAuth2": {
-          "id": "CREDENTIAL_ID_GMAIL",
+          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
           "name": "Gmail OAuth2"
         }
       }
@@ -260,7 +260,7 @@
         "operation": "update",
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID",
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
           "mode": "id"
         },
         "sheetName": {
@@ -292,7 +292,7 @@
       "position": [1420, 340],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "CREDENTIAL_ID_SHEETS",
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
           "name": "Google Sheets OAuth2"
         }
       }

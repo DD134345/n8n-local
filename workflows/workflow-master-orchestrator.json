@@ -41,7 +41,7 @@
       "position": [440, 240],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "CREDENTIAL_ID_N8N_API",
+          "id": "[YOUR_N8N_API_CREDENTIAL_ID]",
           "name": "n8n API Key"
         }
       },
@@ -69,7 +69,7 @@
       "position": [440, 460],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "CREDENTIAL_ID_N8N_API",
+          "id": "[YOUR_N8N_API_CREDENTIAL_ID]",
           "name": "n8n API Key"
         }
       }
@@ -144,7 +144,7 @@
       "position": [1100, 440],
       "credentials": {
         "ollamaApi": {
-          "id": "CREDENTIAL_ID_OLLAMA",
+          "id": "[YOUR_OLLAMA_CREDENTIAL_ID]",
           "name": "Ollama Local"
         }
       }
@@ -164,7 +164,7 @@
       "position": [1460, 240],
       "credentials": {
         "gmailOAuth2": {
-          "id": "CREDENTIAL_ID_GMAIL",
+          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
           "name": "Gmail OAuth2"
         }
       }
@@ -174,7 +174,7 @@
         "operation": "append",
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID",
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
           "mode": "id"
         },
         "sheetName": {
@@ -208,7 +208,7 @@
       "position": [1200, 540],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "CREDENTIAL_ID_SHEETS",
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
           "name": "Google Sheets OAuth2"
         }
       }

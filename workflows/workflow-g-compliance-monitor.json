@@ -25,7 +25,7 @@
         "operation": "read",
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID",
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
           "mode": "id"
         },
         "sheetName": {
@@ -44,7 +44,7 @@
       "position": [440, 340],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "CREDENTIAL_ID_SHEETS",
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
           "name": "Google Sheets OAuth2"
         }
       }
@@ -110,7 +110,7 @@
         "operation": "update",
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID",
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
           "mode": "id"
         },
         "sheetName": {
@@ -143,7 +143,7 @@
       "position": [1640, 340],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "CREDENTIAL_ID_SHEETS",
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
           "name": "Google Sheets OAuth2"
         }
       }
@@ -219,7 +219,7 @@
       "position": [1540, 680],
       "credentials": {
         "ollamaApi": {
-          "id": "CREDENTIAL_ID_OLLAMA",
+          "id": "[YOUR_OLLAMA_CREDENTIAL_ID]",
           "name": "Ollama Local"
         }
       }
@@ -229,7 +229,7 @@
         "sendTo": "={{ $vars.ADMIN_EMAIL || 'admin@victoria.edu.vn' }}",
         "subject": "=[CẢNH BÁO] Kiểm tra tuân thủ website - {{ $json.fail_count || '' }} URL không đạt",
         "emailType": "html",
-        "message": "=<h2>🔍 Báo cáo kiểm tra tuân thủ website Victoria TL3</h2>\n<p><strong>Thời gian:</strong> {{ $('Aggregate Results').first().json.timestamp }}</p>\n<p><strong>Tổng URL:</strong> {{ $('Aggregate Results').first().json.total }} | <strong>Đạt:</strong> {{ $('Aggregate Results').first().json.pass_count }} | <strong>Không đạt:</strong> {{ $('Aggregate Results').first().json.fail_count }}</p>\n<hr>\n<h3>Phân tích AI:</h3>\n<div>{{ $json.output || $json.text || 'Không thể tạo phân tích' }}</div>\n<hr>\n<p><em>Kiểm tra chi tiết: <a href=\"https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=compliance\">Bảng Compliance</a></em></p>\n<p><em>Email tự động từ hệ thống Victoria TL3.</em></p>",
+        "message": "=<h2>🔍 Báo cáo kiểm tra tuân thủ website Victoria TL3</h2>\n<p><strong>Thời gian:</strong> {{ $('Aggregate Results').first().json.timestamp }}</p>\n<p><strong>Tổng URL:</strong> {{ $('Aggregate Results').first().json.total }} | <strong>Đạt:</strong> {{ $('Aggregate Results').first().json.pass_count }} | <strong>Không đạt:</strong> {{ $('Aggregate Results').first().json.fail_count }}</p>\n<hr>\n<h3>Phân tích AI:</h3>\n<div>{{ $json.output || $json.text || 'Không thể tạo phân tích' }}</div>\n<hr>\n<p><em>Kiểm tra chi tiết: <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit#gid=compliance\">Bảng Compliance</a></em></p>\n<p><em>Email tự động từ hệ thống Victoria TL3.</em></p>",
         "options": {}
       },
       "id": "g1000001-0001-4000-8000-000000000012",
@@ -239,7 +239,7 @@
       "position": [1920, 480],
       "credentials": {
         "gmailOAuth2": {
-          "id": "CREDENTIAL_ID_GMAIL",
+          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
           "name": "Gmail OAuth2"
         }
       }
@@ -276,7 +276,7 @@
         "operation": "read",
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID",
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
           "mode": "id"
         },
         "sheetName": {
@@ -295,7 +295,7 @@
       "position": [440, 800],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "CREDENTIAL_ID_SHEETS",
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
           "name": "Google Sheets OAuth2"
         }
       }
@@ -330,7 +330,7 @@
       "position": [580, 1000],
       "credentials": {
         "ollamaApi": {
-          "id": "CREDENTIAL_ID_OLLAMA",
+          "id": "[YOUR_OLLAMA_CREDENTIAL_ID]",
           "name": "Ollama Local"
         }
       }
@@ -350,7 +350,7 @@
       "position": [920, 800],
       "credentials": {
         "gmailOAuth2": {
-          "id": "CREDENTIAL_ID_GMAIL",
+          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
           "name": "Gmail OAuth2"
         }
       }

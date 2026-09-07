@@ -12,7 +12,7 @@
         },
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID",
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
           "mode": "id"
         },
         "sheetName": {
@@ -31,7 +31,7 @@
       "position": [200, 340],
       "credentials": {
         "googleSheetsTriggerOAuth2Api": {
-          "id": "CREDENTIAL_ID_SHEETS",
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
           "name": "Google Sheets Trigger OAuth2"
         }
       }
@@ -97,7 +97,7 @@
       "position": [600, 460],
       "credentials": {
         "ollamaApi": {
-          "id": "CREDENTIAL_ID_OLLAMA",
+          "id": "[YOUR_OLLAMA_CREDENTIAL_ID]",
           "name": "Ollama Local"
         }
       }
@@ -151,7 +151,7 @@
         "operation": "update",
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID",
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
           "mode": "id"
         },
         "sheetName": {
@@ -183,7 +183,7 @@
       "position": [1200, 340],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "CREDENTIAL_ID_SHEETS",
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
           "name": "Google Sheets OAuth2"
         }
       }
