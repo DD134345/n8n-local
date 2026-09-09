@@ -1,0 +1,505 @@
+{
+  "name": "D - Auto-Publish (WordPress + Manual Fallback)",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "id",
+          "cachedResultName": "Menu"
+        },
+        "event": "rowUpdate",
+        "options": {
+          "columnsToWatch": [
+            "Approved"
+          ]
+        }
+      },
+      "id": "d1000001-0001-4000-8000-000000000001",
+      "name": "Sheets Trigger - Approval Changed",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        340
+      ],
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets Trigger OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-approved",
+              "leftValue": "={{ $json['Approved'] === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "cond-not-posted",
+              "leftValue": "={{ $json['Published'] !== true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d1000001-0001-4000-8000-000000000002",
+      "name": "IF - Approved and Not Posted",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $vars.CMS_TYPE || 'wordpress' }}",
+                    "rightValue": "wordpress",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": "WordPress"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $vars.CMS_TYPE || 'wordpress' }}",
+                    "rightValue": "manual",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": "Manual"
+            }
+          ],
+          "fallbackOutput": {
+            "type": "extra",
+            "output": "Manual Fallback"
+          }
+        },
+        "options": {}
+      },
+      "id": "d1000001-0001-4000-8000-000000000003",
+      "name": "Switch - CMS Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        680,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.WORDPRESS_URL || 'https://your-school-site.edu.vn' }}/wp-json/wp/v2/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"title\": \"{{ $json['Date'] }} - Menu\",\n  \"content\": {{ JSON.stringify($json['Website version']) }},\n  \"status\": \"publish\",\n  \"categories\": []\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "d1000001-0001-4000-8000-000000000004",
+      "name": "WordPress - Create Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        220
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "CREDENTIAL_ID_WP",
+          "name": "WordPress Application Password"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "set-url",
+              "name": "post_url",
+              "value": "={{ $json.link || $json.guid?.rendered || 'Published - check site' }}",
+              "type": "string"
+            },
+            {
+              "id": "set-published",
+              "name": "da_dang",
+              "value": "TRUE",
+              "type": "string"
+            },
+            {
+              "id": "set-method",
+              "name": "publish_method",
+              "value": "WordPress API",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d1000001-0001-4000-8000-000000000005",
+      "name": "Set - WordPress Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1160,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $vars.POSTER_EMAIL || 'poster@victoria.edu.vn' }}",
+        "subject": "=[TO PUBLISH] {{ $json['Date'] }} - Menu, Victoria TL3",
+        "emailType": "html",
+        "message": "=<h2>Content ready to publish on the website</h2>\n<p><strong>Date:</strong> {{ $json['Date'] }}</p>\n<p><strong>Approved by:</strong> {{ $json['Approved by'] }}</p>\n<p><strong>Approved at:</strong> {{ $json['Approved at'] }}</p>\n<hr>\n<h3>Website version (copy &amp; paste into the CMS):</h3>\n{{ $json['Website version'] }}\n<hr>\n<h3>Zalo version:</h3>\n<pre>{{ $json['Zalo version'] }}</pre>\n<hr>\n<h3>Facebook version:</h3>\n<pre>{{ $json['Facebook version'] }}</pre>\n<hr>\n<p><em>Automated email from the Victoria TL3 system. Please publish the content above to the website and tick \"Published\" in the spreadsheet.</em></p>",
+        "options": {}
+      },
+      "id": "d1000001-0001-4000-8000-000000000006",
+      "name": "Gmail - Manual Publish Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        920,
+        460
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "set-url-manual",
+              "name": "post_url",
+              "value": "Manual - email sent to poster",
+              "type": "string"
+            },
+            {
+              "id": "set-published-manual",
+              "name": "da_dang",
+              "value": "TRUE",
+              "type": "string"
+            },
+            {
+              "id": "set-method-manual",
+              "name": "publish_method",
+              "value": "Email to poster",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d1000001-0001-4000-8000-000000000007",
+      "name": "Set - Manual Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1160,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $vars.ADMIN_EMAIL || 'admin@victoria.edu.vn' }}",
+        "subject": "=[ERROR] Automatic publishing failed - {{ $json['Date'] }}",
+        "emailType": "html",
+        "message": "=<h2>&#9888; Automatic publishing failed</h2>\n<p>The WordPress API returned an error. The content has been emailed to the person who posts manually.</p>\n<p><strong>Date:</strong> {{ $json['Date'] }}</p>\n<p><strong>Error detail:</strong> {{ $json.error?.message || 'Unknown error' }}</p>\n<p><em>Please check the WordPress API connection.</em></p>",
+        "options": {}
+      },
+      "id": "d1000001-0001-4000-8000-000000000008",
+      "name": "Gmail - WP Error Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1160,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "id",
+          "cachedResultName": "Menu"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Published": "={{ $json.da_dang }}",
+            "Post URL": "={{ $json.post_url }}",
+            "Notes": "={{ $json.publish_method }} - {{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "Published",
+              "displayName": "Published",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Post URL",
+              "displayName": "Post URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d1000001-0001-4000-8000-000000000009",
+      "name": "Update Sheet - Mark Published",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1420,
+        340
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "d1000001-0001-4000-8000-000000000010",
+      "name": "No Op - Skip",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        680,
+        560
+      ]
+    }
+  ],
+  "connections": {
+    "Sheets Trigger - Approval Changed": {
+      "main": [
+        [
+          {
+            "node": "IF - Approved and Not Posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Approved and Not Posted": {
+      "main": [
+        [
+          {
+            "node": "Switch - CMS Type",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Op - Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch - CMS Type": {
+      "main": [
+        [
+          {
+            "node": "WordPress - Create Post",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail - Manual Publish Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail - Manual Publish Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WordPress - Create Post": {
+      "main": [
+        [
+          {
+            "node": "Set - WordPress Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail - WP Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - WP Error Alert": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Manual Publish Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - WordPress Success": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet - Mark Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Manual Publish Email": {
+      "main": [
+        [
+          {
+            "node": "Set - Manual Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Manual Success": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet - Mark Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "d-publish-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": ""
+  },
+  "tags": [
+    {
+      "name": "victoria-tl3"
+    },
+    {
+      "name": "publishing"
+    }
+  ],
+  "pinData": {}
+}

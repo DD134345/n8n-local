@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Victoria TL3 - Agentic Monitoring Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>Victoria TL3 - Agentic Monitoring</h1>
+            <div class="header-right">
+                <span id="last-updated">Updated: --:--</span>
+                <button id="refresh-btn" class="btn btn-primary">🔄 Refresh</button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- API Configuration -->
+        <section id="config-section" class="section">
+            <h2>Connection settings</h2>
+            <div class="config-grid">
+                <div class="config-item">
+                    <label for="n8n-url">n8n URL:</label>
+                    <input type="text" id="n8n-url" placeholder="http://localhost:5678" value="http://localhost:5678">
+                </div>
+                <div class="config-item">
+                    <label for="n8n-api-key">API Key:</label>
+                    <input type="password" id="n8n-api-key" placeholder="[YOUR_N8N_API_KEY]">
+                </div>
+                <div class="config-item">
+                    <button id="save-config" class="btn btn-primary">💾 Save settings</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Health Status Cards -->
+        <section id="health-section" class="section">
+            <h2>System status</h2>
+            <div class="health-grid">
+                <div class="health-card" id="card-n8n">
+                    <div class="health-indicator green"></div>
+                    <h3>n8n Engine</h3>
+                    <p class="status-text">Checking...</p>
+                </div>
+                <div class="health-card" id="card-ollama">
+                    <div class="health-indicator gray"></div>
+                    <h3>Ollama (Local LLM)</h3>
+                    <p class="status-text">Checking...</p>
+                </div>
+                <div class="health-card" id="card-sheets">
+                    <div class="health-indicator gray"></div>
+                    <h3>Google Sheets</h3>
+                    <p class="status-text">Checking...</p>
+                </div>
+                <div class="health-card" id="card-wordpress">
+                    <div class="health-indicator gray"></div>
+                    <h3>WordPress</h3>
+                    <p class="status-text">Checking...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Workflow Status -->
+        <section id="workflows-section" class="section">
+            <h2>Workflow status</h2>
+            <div class="table-container">
+                <table id="workflows-table">
+                    <thead>
+                        <tr>
+                            <th>Workflow</th>
+                            <th>Status</th>
+                            <th>Last run</th>
+                            <th>Error</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="workflows-tbody">
+                        <tr><td colspan="5">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Recent Executions -->
+        <section id="executions-section" class="section">
+            <h2>Recent executions</h2>
+            <div class="filters">
+                <select id="filter-status">
+                    <option value="">All</option>
+                    <option value="success">Success</option>
+                    <option value="error">Error</option>
+                    <option value="running">Running</option>
+                </select>
+                <select id="filter-workflow">
+                    <option value="">All workflows</option>
+                </select>
+                <input type="number" id="filter-limit" value="20" min="5" max="100" placeholder="Record count">
+                <button id="filter-apply" class="btn btn-secondary">Apply</button>
+            </div>
+            <div class="table-container">
+                <table id="executions-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Workflow</th>
+                            <th>Status</th>
+                            <th>Started</th>
+                            <th>Finished</th>
+                            <th>Duration</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="executions-tbody">
+                        <tr><td colspan="7">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Feature Requests -->
+        <section id="features-section" class="section">
+            <h2>New feature requests</h2>
+            <div class="feature-form">
+                <input type="text" id="feature-title" placeholder="Feature name">
+                <textarea id="feature-desc" placeholder="Detailed description..."></textarea>
+                <select id="feature-priority">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                </select>
+                <button id="add-feature" class="btn btn-primary">➕ Add request</button>
+            </div>
+            <div class="table-container">
+                <table id="features-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Description</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="features-tbody">
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Health Log Upload -->
+        <section id="logs-section" class="section">
+            <h2>Upload health log</h2>
+            <div class="upload-area" id="upload-area">
+                <p>Drag a log file here, or click to choose one</p>
+                <input type="file" id="log-file" accept=".log,.txt,.json" multiple hidden>
+                <button id="upload-btn" class="btn btn-secondary">📁 Choose file</button>
+            </div>
+            <div id="upload-status"></div>
+            <div class="table-container">
+                <table id="logs-table">
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Size</th>
+                            <th>Uploaded</th>
+                            <th>Content</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-tbody">
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Compliance Status -->
+        <section id="compliance-section" class="section">
+            <h2>Circular 09/2024 compliance status</h2>
+            <div class="compliance-grid">
+                <div class="compliance-card" id="compliance-total">
+                    <h3>Total items</h3>
+                    <p class="big-number" id="total-items">--</p>
+                </div>
+                <div class="compliance-card green" id="compliance-done">
+                    <h3>Published</h3>
+                    <p class="big-number" id="done-items">--</p>
+                </div>
+                <div class="compliance-card yellow" id="compliance-pending">
+                    <h3>Pending</h3>
+                    <p class="big-number" id="pending-items">--</p>
+                </div>
+                <div class="compliance-card red" id="compliance-missing">
+                    <h3>Missing</h3>
+                    <p class="big-number" id="missing-items">--</p>
+                </div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="compliance-progress" style="width: 0%">0%</div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Victoria TL3 Agentic Monitoring Dashboard v1.0</p>
+        <p>Built by Nguyen Duy Duc Trong</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

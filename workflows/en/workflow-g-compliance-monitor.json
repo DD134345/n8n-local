@@ -1,0 +1,651 @@
+{
+  "name": "G - Compliance URL Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "g1000001-0001-4000-8000-000000000001",
+      "name": "Cron - Daily 6AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Daily at 06:00 ICT (UTC+7)\nAdjust if server timezone ≠ ICT:\n0 23 * * * for UTC (previous day)"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Compliance",
+          "mode": "name"
+        },
+        "options": {
+          "range": "A:I"
+        }
+      },
+      "id": "g1000001-0001-4000-8000-000000000002",
+      "name": "Read Compliance URLs",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        340
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter to only active URLs (non-empty URL column)\nconst items = $input.all();\nconst activeChecks = items.filter(item => {\n  const url = item.json['Check URL'];\n  return url && url.toString().trim() !== '';\n});\n\nreturn activeChecks.map(item => ({\n  json: {\n    campus: item.json['Campus'] || '',\n    noi_dung: item.json['Check item'] || '',\n    dieu_khoan: item.json['Clause'] || '',\n    url: item.json['Check URL'],\n    keyword: item.json['Expected keyword'] || '',\n    row_index: items.indexOf(item) + 2  // +2 for header row + 0-index\n  }\n}));"
+      },
+      "id": "g1000001-0001-4000-8000-000000000003",
+      "name": "Filter Active URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "g1000001-0001-4000-8000-000000000004",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        920,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 15000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 5
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "g1000001-0001-4000-8000-000000000005",
+      "name": "HTTP - Check URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1160,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Evaluate the HTTP response\nconst item = $input.first();\nconst response = item.json;\nconst batchItem = $('Split In Batches').first().json;\n\nconst statusCode = response.statusCode || 0;\nconst body = (response.body || '').toString();\nconst keyword = batchItem.keyword || '';\nconst now = new Date().toISOString();\n\nlet status = 'ERROR';\nlet note = '';\n\nif (statusCode >= 200 && statusCode < 300) {\n  if (keyword === '' || body.includes(keyword)) {\n    status = 'PASS';\n    note = keyword ? `Keyword \"${keyword}\" found` : 'HTTP 200 OK';\n  } else {\n    status = 'FAIL';\n    note = `HTTP ${statusCode} OK but keyword \"${keyword}\" not found in page`;\n  }\n} else if (statusCode >= 300 && statusCode < 400) {\n  status = 'FAIL';\n  note = `Redirect (HTTP ${statusCode}) - page may have moved`;\n} else if (statusCode >= 400) {\n  status = 'FAIL';\n  note = `HTTP ${statusCode} error`;\n} else {\n  status = 'ERROR';\n  note = 'Connection failed or timeout';\n}\n\nreturn [{\n  json: {\n    campus: batchItem.campus,\n    noi_dung: batchItem.noi_dung,\n    url: batchItem.url,\n    status: status,\n    http_status: statusCode,\n    timestamp: now,\n    note: note,\n    row_index: batchItem.row_index\n  }\n}];"
+      },
+      "id": "g1000001-0001-4000-8000-000000000006",
+      "name": "Evaluate Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Compliance",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "={{ $json.status }}",
+            "HTTP Status": "={{ $json.http_status }}",
+            "Last checked": "={{ $json.timestamp }}",
+            "Notes": "={{ $json.note }}"
+          },
+          "matchingColumns": [
+            "Check URL"
+          ],
+          "schema": [
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "HTTP Status",
+              "displayName": "HTTP Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Last checked",
+              "displayName": "Last checked",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "g1000001-0001-4000-8000-000000000007",
+      "name": "Update Compliance Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1640,
+        340
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect all results and check for failures\n// This runs after the batch loop completes\nconst allResults = $('Evaluate Response').all();\n\nconst failures = allResults.filter(r => r.json.status !== 'PASS');\nconst passes = allResults.filter(r => r.json.status === 'PASS');\n\nconst summary = {\n  total: allResults.length,\n  pass_count: passes.length,\n  fail_count: failures.length,\n  has_failures: failures.length > 0,\n  failures: failures.map(f => ({\n    url: f.json.url,\n    status: f.json.status,\n    note: f.json.note,\n    noi_dung: f.json.noi_dung\n  })),\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: summary }];"
+      },
+      "id": "g1000001-0001-4000-8000-000000000008",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        580
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-has-failures",
+              "leftValue": "={{ $json.has_failures }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "g1000001-0001-4000-8000-000000000009",
+      "name": "IF - Any Failures",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        580
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a Vietnamese education compliance specialist, focused on Circular 09/2024.\n\nTask: analyse the website compliance check results and write a concise report in English.\n\nThe report needs:\n1. A status summary (how many URLs passed / failed)\n2. A list of failing URLs with likely causes\n3. Specific remediation steps\n4. A risk rating (Low / Medium / High)\n\nTone: professional, concise, actionable."
+        },
+        "promptType": "define",
+        "text": "=Analyse the Victoria TL3 website compliance check results:\n\nTotal URLs checked: {{ $json.total }}\nPassed: {{ $json.pass_count }}\nFailed or errored: {{ $json.fail_count }}\n\nDetail of failing URLs:\n{{ JSON.stringify($json.failures, null, 2) }}\n\nWrite the analysis and remediation recommendations."
+      },
+      "id": "g1000001-0001-4000-8000-000000000010",
+      "name": "AI Agent - Analyze Failures",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        480
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:7b",
+        "baseUrl": "http://ollama:11434",
+        "options": {
+          "temperature": 0.3,
+          "numCtx": 4096
+        }
+      },
+      "id": "g1000001-0001-4000-8000-000000000011",
+      "name": "Ollama Model - Compliance",
+      "type": "@n8n/n8n-nodes-langchain.lmOllama",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        680
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "[YOUR_OLLAMA_CREDENTIAL_ID]",
+          "name": "Ollama Local"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $vars.ADMIN_EMAIL || 'admin@victoria.edu.vn' }}",
+        "subject": "=[ALERT] Website compliance check - {{ $json.fail_count || '' }} URLs failing",
+        "emailType": "html",
+        "message": "=<h2>&#128269; Victoria TL3 website compliance report</h2>\n<p><strong>Time:</strong> {{ $('Aggregate Results').first().json.timestamp }}</p>\n<p><strong>Total URLs:</strong> {{ $('Aggregate Results').first().json.total }} | <strong>Passed:</strong> {{ $('Aggregate Results').first().json.pass_count }} | <strong>Failed:</strong> {{ $('Aggregate Results').first().json.fail_count }}</p>\n<hr>\n<h3>AI analysis:</h3>\n<div>{{ $json.output || $json.text || 'Analysis unavailable' }}</div>\n<hr>\n<p><em>Full detail: <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit#gid=compliance\">Compliance sheet</a></em></p>\n<p><em>Automated email from the Victoria TL3 system.</em></p>",
+        "options": {}
+      },
+      "id": "g1000001-0001-4000-8000-000000000012",
+      "name": "Gmail - Compliance Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1920,
+        480
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "g1000001-0001-4000-8000-000000000013",
+      "name": "No Op - All Passed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "g1000001-0001-4000-8000-000000000014",
+      "name": "Cron - Weekly Monday 9AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        800
+      ],
+      "notesInFlow": true,
+      "notes": "Weekly summary every Monday at 09:00 ICT"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Compliance",
+          "mode": "name"
+        },
+        "options": {
+          "range": "A:I"
+        }
+      },
+      "id": "g1000001-0001-4000-8000-000000000015",
+      "name": "Read Weekly Compliance",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        800
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a compliance specialist for the Victoria school group.\n\nTask: produce a weekly summary report on website compliance status for the Board of Directors.\n\nThe report needs:\n1. An overall compliance score (% of URLs passing)\n2. The trend against last week, where available\n3. Issues that need attention\n4. Recommended actions\n\nFormat: clean, professional HTML suitable for an email to senior management."
+        },
+        "promptType": "define",
+        "text": "=Produce the weekly report on Victoria TL3 website compliance.\n\nCurrent data:\n{{ JSON.stringify($input.all().map(i => i.json), null, 2) }}\n\nWrite a professional HTML report for the Board of Directors."
+      },
+      "id": "g1000001-0001-4000-8000-000000000016",
+      "name": "AI Agent - Weekly Summary",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        680,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:7b",
+        "baseUrl": "http://ollama:11434",
+        "options": {
+          "temperature": 0.3,
+          "numCtx": 4096
+        }
+      },
+      "id": "g1000001-0001-4000-8000-000000000017",
+      "name": "Ollama Model - Weekly",
+      "type": "@n8n/n8n-nodes-langchain.lmOllama",
+      "typeVersion": 1,
+      "position": [
+        580,
+        1000
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "[YOUR_OLLAMA_CREDENTIAL_ID]",
+          "name": "Ollama Local"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $vars.BGD_EMAIL || 'bgd@victoria.edu.vn' }}",
+        "subject": "=[WEEKLY REPORT] Victoria website compliance - week of {{ new Date().toLocaleDateString('en-GB') }}",
+        "emailType": "html",
+        "message": "={{ $json.output || $json.text || 'Report unavailable' }}",
+        "options": {}
+      },
+      "id": "g1000001-0001-4000-8000-000000000018",
+      "name": "Gmail - Weekly Report to BGD",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        920,
+        800
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
+          "name": "Gmail OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Cron - Daily 6AM": {
+      "main": [
+        [
+          {
+            "node": "Read Compliance URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Compliance URLs": {
+      "main": [
+        [
+          {
+            "node": "Filter Active URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Active URLs": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Check URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Check URL": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Response": {
+      "main": [
+        [
+          {
+            "node": "Update Compliance Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Compliance Sheet": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "IF - Any Failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Any Failures": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Analyze Failures",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Op - All Passed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Analyze Failures": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Compliance Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Model - Compliance": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Analyze Failures",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron - Weekly Monday 9AM": {
+      "main": [
+        [
+          {
+            "node": "Read Weekly Compliance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Weekly Compliance": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Weekly Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Model - Weekly": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Weekly Summary",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Weekly Summary": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Weekly Report to BGD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "g-compliance-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": ""
+  },
+  "tags": [
+    {
+      "name": "victoria-tl3"
+    },
+    {
+      "name": "compliance"
+    },
+    {
+      "name": "monitoring"
+    }
+  ],
+  "pinData": {}
+}

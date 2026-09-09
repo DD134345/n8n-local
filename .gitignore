@@ -1,5 +1,7 @@
-# Markdown files
-*.md
+# Secrets — never commit
+.env
+*.env
+!.env.example
 
 # Dependencies
 node_modules/
@@ -8,6 +10,10 @@ node_modules/
 opencode.json
 .claude/
 .claude.json
-AGENTS.md
 
+# Windows shell artifact
+nul
 
+# Third-party clones (upstream repos, not part of this project)
+deepseek-harness/
+TencentDB-Agent-Memory/
