@@ -1,4 +1,6 @@
+# ---------------------------------------------------------------------------
 # Secrets — never commit
+# ---------------------------------------------------------------------------
 .env
 *.env
 !.env.example
@@ -6,14 +8,74 @@
 # Dependencies
 node_modules/
 
-# AI coding assistant configs
-opencode.json
-.claude/
-.claude.json
-
 # Windows shell artifact
 nul
 
+# ---------------------------------------------------------------------------
 # Third-party clones (upstream repos, not part of this project)
+# ---------------------------------------------------------------------------
 deepseek-harness/
 TencentDB-Agent-Memory/
+
+# ---------------------------------------------------------------------------
+# AI coding assistant / agent tooling — machine-local, not project source
+# ---------------------------------------------------------------------------
+.agents/
+.opencode/
+.claude/
+.codex/
+.cursor/
+.gemini/
+.cline/
+.continue/
+.copilot/
+.junie/
+.kimi/
+.roo/
+.trae/
+.windsurf/
+.context/
+.skills/
+.aider*
+opencode.json
+opencode.json.*
+.claude.json
+skills-lock.json
+
+# Agent instruction / rules files
+AGENTS.md
+AGENTS.local.md
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
+.cursorrules
+.windsurfrules
+.roomodes
+
+# Installed skill packages (re-installable from skills-lock.json)
+**/skills/*/references/
+
+# ---------------------------------------------------------------------------
+# AI/assistant outputs and working notes
+# ---------------------------------------------------------------------------
+Claude outputs/
+WORKFLOW-TASKS.md
+*-instructions.md
+en-*-instructions.md
+
+# ---------------------------------------------------------------------------
+# Internal documentation (keep the repo to workflow source only)
+# ---------------------------------------------------------------------------
+docs/
+.md/
+
+# ---------------------------------------------------------------------------
+# Editor / OS / generated
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# n8n backups produced by scripts/backup-n8n.sh
+backups/
