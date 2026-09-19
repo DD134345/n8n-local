@@ -45,6 +45,57 @@
     },
     {
       "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "list",
+          "cachedResultName": "Config"
+        },
+        "options": {
+          "range": "A:D"
+        }
+      },
+      "id": "d1000001-0001-4000-8000-000000000011",
+      "name": "Read Config Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        340
+      ],
+      "executeOnce": true,
+      "notesInFlow": true,
+      "notes": "Reads the Config tab of the Google Sheet. Replaces $vars, which n8n Community edition does not have.",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\n// Carry the triggering rows through so downstream nodes keep their data,\n// while $('Read Config').first().json.KEY still resolves.\nconst rows = $('Sheets Trigger - Approval Changed').all();\nif (rows.length === 0) return [{ json: cfg }];\nreturn rows.map((item, i) => ({ json: { ...cfg, ...item.json }, pairedItem: { item: i } }));\n"
+      },
+      "id": "d1000001-0001-4000-8000-000000000012",
+      "name": "Read Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Folds the Key/Value rows into one object so later nodes can read it via $('Read Config')."
+    },
+    {
+      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
@@ -54,7 +105,7 @@
           "conditions": [
             {
               "id": "cond-approved",
-              "leftValue": "={{ $json['Approved'] === true }}",
+              "leftValue": "={{ $json[\"Approved\"] === true || String($json[\"Approved\"]).toLowerCase() === \"true\" }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -64,7 +115,17 @@
             },
             {
               "id": "cond-not-posted",
-              "leftValue": "={{ $json['Published'] !== true }}",
+              "leftValue": "={{ $json[\"Published\"] !== true && String($json[\"Published\"]).toLowerCase() !== \"true\" }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "cond-no-post-url",
+              "leftValue": "={{ !$json[\"Post URL\"] || String($json[\"Post URL\"]).trim() === \"\" }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -82,7 +143,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        440,
+        920,
         340
       ]
     },
@@ -94,7 +155,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "leftValue": "={{ $vars.CMS_TYPE || 'wordpress' }}",
+                    "leftValue": "={{ ($('Read Config')?.first()?.json?.CMS_TYPE || 'wordpress') || 'wordpress' }}",
                     "rightValue": "wordpress",
                     "operator": {
                       "type": "string",
@@ -109,7 +170,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "leftValue": "={{ $vars.CMS_TYPE || 'wordpress' }}",
+                    "leftValue": "={{ ($('Read Config')?.first()?.json?.CMS_TYPE || 'wordpress') || 'wordpress' }}",
                     "rightValue": "manual",
                     "operator": {
                       "type": "string",
@@ -133,13 +194,13 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        680,
+        1160,
         340
       ]
     },
     {
       "parameters": {
-        "url": "={{ $vars.WORDPRESS_URL || 'https://your-school-site.edu.vn' }}/wp-json/wp/v2/posts",
+        "url": "={{ ($('Read Config')?.first()?.json?.WORDPRESS_URL || 'https://victoria-thanglong3.edu.vn') || 'https://your-school-site.edu.vn' }}/wp-json/wp/v2/posts",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
         "sendBody": true,
@@ -154,7 +215,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        920,
+        1400,
         220
       ],
       "credentials": {
@@ -186,6 +247,12 @@
               "name": "publish_method",
               "value": "WordPress API",
               "type": "string"
+            },
+            {
+              "id": "set-row-number",
+              "name": "row_number",
+              "value": "={{ $(\"Sheets Trigger - Approval Changed\").item.json.row_number }}",
+              "type": "number"
             }
           ]
         },
@@ -196,30 +263,33 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1160,
+        1640,
         140
       ]
     },
     {
       "parameters": {
-        "sendTo": "={{ $vars.POSTER_EMAIL || 'poster@victoria.edu.vn' }}",
+        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config')?.first()?.json?.POSTER_EMAIL || 'poster@victoria.edu.vn') || 'poster@victoria.edu.vn' }}",
         "subject": "=[TO PUBLISH] {{ $json['Date'] }} - Menu, Victoria TL3",
-        "emailType": "html",
-        "message": "=<h2>Content ready to publish on the website</h2>\n<p><strong>Date:</strong> {{ $json['Date'] }}</p>\n<p><strong>Approved by:</strong> {{ $json['Approved by'] }}</p>\n<p><strong>Approved at:</strong> {{ $json['Approved at'] }}</p>\n<hr>\n<h3>Website version (copy &amp; paste into the CMS):</h3>\n{{ $json['Website version'] }}\n<hr>\n<h3>Zalo version:</h3>\n<pre>{{ $json['Zalo version'] }}</pre>\n<hr>\n<h3>Facebook version:</h3>\n<pre>{{ $json['Facebook version'] }}</pre>\n<hr>\n<p><em>Automated email from the Victoria TL3 system. Please publish the content above to the website and tick \"Published\" in the spreadsheet.</em></p>",
-        "options": {}
+        "emailFormat": "html",
+        "html": "=<h2>Content ready to publish on the website</h2>\n<p><strong>Date:</strong> {{ $json['Date'] }}</p>\n<p><strong>Approved by:</strong> {{ $json['Approved by'] }}</p>\n<p><strong>Approved at:</strong> {{ $json['Approved at'] }}</p>\n<hr>\n<h3>Website version (copy &amp; paste into the CMS):</h3>\n{{ $json['Website version'] }}\n<hr>\n<h3>Zalo version:</h3>\n<pre>{{ $json['Zalo version'] }}</pre>\n<hr>\n<h3>Facebook version:</h3>\n<pre>{{ $json['Facebook version'] }}</pre>\n<hr>\n<p><em>Automated email from the Victoria TL3 system. Please publish the content above to the website and tick \"Published\" in the spreadsheet.</em></p>",
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "d1000001-0001-4000-8000-000000000006",
-      "name": "Gmail - Manual Publish Email",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email - Manual Publish",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        920,
+        1400,
         460
       ],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
-          "name": "Gmail OAuth2"
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
         }
       }
     },
@@ -244,6 +314,12 @@
               "name": "publish_method",
               "value": "Email to poster",
               "type": "string"
+            },
+            {
+              "id": "set-row-number-manual",
+              "name": "row_number",
+              "value": "={{ $(\"Sheets Trigger - Approval Changed\").item.json.row_number }}",
+              "type": "number"
             }
           ]
         },
@@ -254,30 +330,33 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1160,
+        1640,
         460
       ]
     },
     {
       "parameters": {
-        "sendTo": "={{ $vars.ADMIN_EMAIL || 'admin@victoria.edu.vn' }}",
+        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') || 'admin@victoria.edu.vn' }}",
         "subject": "=[ERROR] Automatic publishing failed - {{ $json['Date'] }}",
-        "emailType": "html",
-        "message": "=<h2>&#9888; Automatic publishing failed</h2>\n<p>The WordPress API returned an error. The content has been emailed to the person who posts manually.</p>\n<p><strong>Date:</strong> {{ $json['Date'] }}</p>\n<p><strong>Error detail:</strong> {{ $json.error?.message || 'Unknown error' }}</p>\n<p><em>Please check the WordPress API connection.</em></p>",
-        "options": {}
+        "emailFormat": "html",
+        "html": "=<h2>&#9888; Automatic publishing failed</h2>\n<p>The WordPress API returned an error. The content has been emailed to the person who posts manually.</p>\n<p><strong>Date:</strong> {{ $json['Date'] }}</p>\n<p><strong>Error detail:</strong> {{ $json.error?.message || 'Unknown error' }}</p>\n<p><em>Please check the WordPress API connection.</em></p>",
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "d1000001-0001-4000-8000-000000000008",
-      "name": "Gmail - WP Error Alert",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email - WP Error Alert",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1160,
+        1640,
         300
       ],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
-          "name": "Gmail OAuth2"
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
         }
       }
     },
@@ -332,6 +411,15 @@
               "display": true,
               "type": "string",
               "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
             }
           ]
         },
@@ -342,7 +430,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        1420,
+        1900,
         340
       ],
       "credentials": {
@@ -359,9 +447,139 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        680,
+        1160,
         560
       ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Audit Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss') }}",
+            "Tab": "Menu",
+            "Row": "={{ $json.row_number }}",
+            "Content date": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Date\"] || '' }}",
+            "Approved by": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Approved by\"] || '' }}",
+            "Approved at": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Approved at\"] || '' }}",
+            "Method": "={{ $json.publish_method }}",
+            "Post URL": "={{ $json.post_url }}",
+            "Result": "SUCCESS"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Tab",
+              "displayName": "Tab",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Row",
+              "displayName": "Row",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Content date",
+              "displayName": "Content date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Approved by",
+              "displayName": "Approved by",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Approved at",
+              "displayName": "Approved at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Method",
+              "displayName": "Method",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Post URL",
+              "displayName": "Post URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Result",
+              "displayName": "Result",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d1000001-0001-4000-8000-000000000013",
+      "name": "Append Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2140,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Writes one row to Audit Log per publish. Append-only - this is the traceability evidence.",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
     }
   ],
   "connections": {
@@ -369,7 +587,7 @@
       "main": [
         [
           {
-            "node": "IF - Approved and Not Posted",
+            "node": "Read Config Sheet",
             "type": "main",
             "index": 0
           }
@@ -405,14 +623,14 @@
         ],
         [
           {
-            "node": "Gmail - Manual Publish Email",
+            "node": "Email - Manual Publish",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Gmail - Manual Publish Email",
+            "node": "Email - Manual Publish",
             "type": "main",
             "index": 0
           }
@@ -430,18 +648,7 @@
         ],
         [
           {
-            "node": "Gmail - WP Error Alert",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Gmail - WP Error Alert": {
-      "main": [
-        [
-          {
-            "node": "Gmail - Manual Publish Email",
+            "node": "Email - WP Error Alert",
             "type": "main",
             "index": 0
           }
@@ -459,7 +666,40 @@
         ]
       ]
     },
-    "Gmail - Manual Publish Email": {
+    "Set - Manual Success": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet - Mark Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config Sheet": {
+      "main": [
+        [
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "IF - Approved and Not Posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email - Manual Publish": {
       "main": [
         [
           {
@@ -470,11 +710,22 @@
         ]
       ]
     },
-    "Set - Manual Success": {
+    "Email - WP Error Alert": {
       "main": [
         [
           {
-            "node": "Update Sheet - Mark Published",
+            "node": "Email - Manual Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Sheet - Mark Published": {
+      "main": [
+        [
+          {
+            "node": "Append Audit Log",
             "type": "main",
             "index": 0
           }
@@ -486,7 +737,8 @@
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
   },
   "versionId": "d-publish-v1",
   "meta": {

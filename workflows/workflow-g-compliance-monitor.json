@@ -16,9 +16,63 @@
       "name": "Cron - Daily 6AM",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 340],
+      "position": [
+        200,
+        340
+      ],
       "notesInFlow": true,
       "notes": "Daily at 06:00 ICT (UTC+7)\nAdjust if server timezone ≠ ICT:\n0 23 * * * for UTC (previous day)"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "list",
+          "cachedResultName": "Config"
+        },
+        "options": {
+          "range": "A:D"
+        }
+      },
+      "id": "g1000001-0001-4000-8000-000000000019",
+      "name": "Read Config Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        340
+      ],
+      "executeOnce": true,
+      "notesInFlow": true,
+      "notes": "Đọc tab Config của Google Sheet. Thay cho $vars (n8n Community không có biến tùy chỉnh).",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nreturn [{ json: cfg }];\n"
+      },
+      "id": "g1000001-0001-4000-8000-000000000020",
+      "name": "Read Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Gộp các dòng Key/Value thành một object để các node sau gọi qua $('Read Config')."
     },
     {
       "parameters": {
@@ -41,7 +95,10 @@
       "name": "Read Compliance URLs",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [440, 340],
+      "position": [
+        920,
+        340
+      ],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
@@ -57,7 +114,10 @@
       "name": "Filter Active URLs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [680, 340]
+      "position": [
+        1160,
+        340
+      ]
     },
     {
       "parameters": {
@@ -68,7 +128,10 @@
       "name": "Split In Batches",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [920, 340]
+      "position": [
+        1400,
+        340
+      ]
     },
     {
       "parameters": {
@@ -93,7 +156,10 @@
       "name": "HTTP - Check URL",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1160, 340]
+      "position": [
+        1640,
+        340
+      ]
     },
     {
       "parameters": {
@@ -103,7 +169,10 @@
       "name": "Evaluate Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1400, 340]
+      "position": [
+        1880,
+        340
+      ]
     },
     {
       "parameters": {
@@ -126,12 +195,55 @@
             "Lần kiểm tra cuối": "={{ $json.timestamp }}",
             "Ghi chú": "={{ $json.note }}"
           },
-          "matchingColumns": ["URL kiểm tra"],
+          "matchingColumns": [
+            "URL kiểm tra"
+          ],
           "schema": [
-            {"id": "Trạng thái", "displayName": "Trạng thái", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false},
-            {"id": "HTTP Status", "displayName": "HTTP Status", "required": false, "defaultMatch": false, "display": true, "type": "number", "canBeUsedToMatch": false},
-            {"id": "Lần kiểm tra cuối", "displayName": "Lần kiểm tra cuối", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false},
-            {"id": "Ghi chú", "displayName": "Ghi chú", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false}
+            {
+              "id": "Trạng thái",
+              "displayName": "Trạng thái",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "HTTP Status",
+              "displayName": "HTTP Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Lần kiểm tra cuối",
+              "displayName": "Lần kiểm tra cuối",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Ghi chú",
+              "displayName": "Ghi chú",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "URL kiểm tra",
+              "displayName": "URL kiểm tra",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
           ]
         },
         "options": {}
@@ -140,7 +252,10 @@
       "name": "Update Compliance Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1640, 340],
+      "position": [
+        2120,
+        340
+      ],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
@@ -150,13 +265,16 @@
     },
     {
       "parameters": {
-        "jsCode": "// Collect all results and check for failures\n// This runs after the batch loop completes\nconst allResults = $('Evaluate Response').all();\n\nconst failures = allResults.filter(r => r.json.status !== 'PASS');\nconst passes = allResults.filter(r => r.json.status === 'PASS');\n\nconst summary = {\n  total: allResults.length,\n  pass_count: passes.length,\n  fail_count: failures.length,\n  has_failures: failures.length > 0,\n  failures: failures.map(f => ({\n    url: f.json.url,\n    status: f.json.status,\n    note: f.json.note,\n    noi_dung: f.json.noi_dung\n  })),\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: summary }];"
+        "jsCode": "// Collect all results and check failures\n// runs after batch loop completes\nconst allResults = $('Evaluate Response').all();\n\nconst failures = allResults.filter(r => r.json.status !== \"PASS\");\nconst passes = allResults.filter(r => r.json.status === \"PASS\");\n\nconst summary = {\n  total: allResults.length,\n  pass_count: passes.length,\n  fail_count: failures.length,\n  has_failures: failures.length > 0,\n  failures: failures.map(f => ({\n    url: f.json.url,\n    status: f.json.status,\n    note: f.json.note,\n    noi_dung: f.json.noi_dung || f.json.check_content || \"\"\n  })),\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: summary }];"
       },
       "id": "g1000001-0001-4000-8000-000000000008",
       "name": "Aggregate Results",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1160, 580]
+      "position": [
+        1640,
+        580
+      ]
     },
     {
       "parameters": {
@@ -186,7 +304,10 @@
       "name": "IF - Any Failures",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1400, 580]
+      "position": [
+        1880,
+        580
+      ]
     },
     {
       "parameters": {
@@ -200,7 +321,10 @@
       "name": "AI Agent - Analyze Failures",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
-      "position": [1640, 480],
+      "position": [
+        2120,
+        480
+      ],
       "onError": "continueRegularOutput"
     },
     {
@@ -216,7 +340,10 @@
       "name": "Ollama Model - Compliance",
       "type": "@n8n/n8n-nodes-langchain.lmOllama",
       "typeVersion": 1,
-      "position": [1540, 680],
+      "position": [
+        2020,
+        680
+      ],
       "credentials": {
         "ollamaApi": {
           "id": "[YOUR_OLLAMA_CREDENTIAL_ID]",
@@ -226,21 +353,27 @@
     },
     {
       "parameters": {
-        "sendTo": "={{ $vars.ADMIN_EMAIL || 'admin@victoria.edu.vn' }}",
+        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') || 'admin@victoria.edu.vn' }}",
         "subject": "=[CẢNH BÁO] Kiểm tra tuân thủ website - {{ $json.fail_count || '' }} URL không đạt",
-        "emailType": "html",
-        "message": "=<h2>🔍 Báo cáo kiểm tra tuân thủ website Victoria TL3</h2>\n<p><strong>Thời gian:</strong> {{ $('Aggregate Results').first().json.timestamp }}</p>\n<p><strong>Tổng URL:</strong> {{ $('Aggregate Results').first().json.total }} | <strong>Đạt:</strong> {{ $('Aggregate Results').first().json.pass_count }} | <strong>Không đạt:</strong> {{ $('Aggregate Results').first().json.fail_count }}</p>\n<hr>\n<h3>Phân tích AI:</h3>\n<div>{{ $json.output || $json.text || 'Không thể tạo phân tích' }}</div>\n<hr>\n<p><em>Kiểm tra chi tiết: <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit#gid=compliance\">Bảng Compliance</a></em></p>\n<p><em>Email tự động từ hệ thống Victoria TL3.</em></p>",
-        "options": {}
+        "emailFormat": "html",
+        "html": "=<h2>🔍 Báo cáo kiểm tra tuân thủ website Victoria TL3</h2>\n<p><strong>Thời gian:</strong> {{ $('Aggregate Results').first().json.timestamp }}</p>\n<p><strong>Tổng URL:</strong> {{ $('Aggregate Results').first().json.total }} | <strong>Đạt:</strong> {{ $('Aggregate Results').first().json.pass_count }} | <strong>Không đạt:</strong> {{ $('Aggregate Results').first().json.fail_count }}</p>\n<hr>\n<h3>Phân tích AI:</h3>\n<div>{{ $json.output || $json.text || 'Không thể tạo phân tích' }}</div>\n<hr>\n<p><em>Kiểm tra chi tiết: <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit#gid=compliance\">Bảng Compliance</a></em></p>\n<p><em>Email tự động từ hệ thống Victoria TL3.</em></p>",
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "g1000001-0001-4000-8000-000000000012",
-      "name": "Gmail - Compliance Alert",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email - Compliance Alert",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [1920, 480],
+      "position": [
+        2400,
+        480
+      ],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
-          "name": "Gmail OAuth2"
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
         }
       }
     },
@@ -250,7 +383,10 @@
       "name": "No Op - All Passed",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1640, 700]
+      "position": [
+        2120,
+        700
+      ]
     },
     {
       "parameters": {
@@ -267,7 +403,10 @@
       "name": "Cron - Weekly Monday 9AM",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 800],
+      "position": [
+        200,
+        800
+      ],
       "notesInFlow": true,
       "notes": "Weekly summary every Monday at 09:00 ICT"
     },
@@ -292,7 +431,10 @@
       "name": "Read Weekly Compliance",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [440, 800],
+      "position": [
+        920,
+        800
+      ],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
@@ -312,7 +454,10 @@
       "name": "AI Agent - Weekly Summary",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
-      "position": [680, 800]
+      "position": [
+        1160,
+        800
+      ]
     },
     {
       "parameters": {
@@ -327,7 +472,10 @@
       "name": "Ollama Model - Weekly",
       "type": "@n8n/n8n-nodes-langchain.lmOllama",
       "typeVersion": 1,
-      "position": [580, 1000],
+      "position": [
+        1060,
+        1000
+      ],
       "credentials": {
         "ollamaApi": {
           "id": "[YOUR_OLLAMA_CREDENTIAL_ID]",
@@ -337,23 +485,80 @@
     },
     {
       "parameters": {
-        "sendTo": "={{ $vars.BGD_EMAIL || 'bgd@victoria.edu.vn' }}",
+        "fromEmail": "={{ ($('Read Config Weekly')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config Weekly')?.first()?.json?.BGD_EMAIL || 'bgd@victoria.edu.vn') || 'bgd@victoria.edu.vn' }}",
         "subject": "=[BÁO CÁO TUẦN] Tuân thủ website Victoria - Tuần {{ new Date().toLocaleDateString('vi-VN') }}",
-        "emailType": "html",
-        "message": "={{ $json.output || $json.text || 'Không thể tạo báo cáo' }}",
-        "options": {}
+        "emailFormat": "html",
+        "html": "={{ $json.output || $json.text || 'Không thể tạo báo cáo' }}",
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "g1000001-0001-4000-8000-000000000018",
-      "name": "Gmail - Weekly Report to BGD",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email - Weekly Report to BGD",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [920, 800],
+      "position": [
+        1400,
+        800
+      ],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
-          "name": "Gmail OAuth2"
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "list",
+          "cachedResultName": "Config"
+        },
+        "options": {
+          "range": "A:D"
+        }
+      },
+      "id": "g1000001-0001-4000-8000-000000000021",
+      "name": "Read Config Sheet Weekly",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        800
+      ],
+      "executeOnce": true,
+      "notesInFlow": true,
+      "notes": "Đọc tab Config của Google Sheet. Thay cho $vars (n8n Community không có biến tùy chỉnh).",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nreturn [{ json: cfg }];\n"
+      },
+      "id": "g1000001-0001-4000-8000-000000000022",
+      "name": "Read Config Weekly",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        800
+      ],
+      "notesInFlow": true,
+      "notes": "Gộp các dòng Key/Value thành một object để các node sau gọi qua $('Read Config')."
     }
   ],
   "connections": {
@@ -361,7 +566,7 @@
       "main": [
         [
           {
-            "node": "Read Compliance URLs",
+            "node": "Read Config Sheet",
             "type": "main",
             "index": 0
           }
@@ -394,14 +599,14 @@
       "main": [
         [
           {
-            "node": "HTTP - Check URL",
+            "node": "Aggregate Results",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Aggregate Results",
+            "node": "HTTP - Check URL",
             "type": "main",
             "index": 0
           }
@@ -474,7 +679,7 @@
       "main": [
         [
           {
-            "node": "Gmail - Compliance Alert",
+            "node": "Email - Compliance Alert",
             "type": "main",
             "index": 0
           }
@@ -496,7 +701,7 @@
       "main": [
         [
           {
-            "node": "Read Weekly Compliance",
+            "node": "Read Config Sheet Weekly",
             "type": "main",
             "index": 0
           }
@@ -529,7 +734,51 @@
       "main": [
         [
           {
-            "node": "Gmail - Weekly Report to BGD",
+            "node": "Email - Weekly Report to BGD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config Sheet": {
+      "main": [
+        [
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "Read Compliance URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config Sheet Weekly": {
+      "main": [
+        [
+          {
+            "node": "Read Config Weekly",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config Weekly": {
+      "main": [
+        [
+          {
+            "node": "Read Weekly Compliance",
             "type": "main",
             "index": 0
           }
@@ -541,7 +790,8 @@
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
   },
   "versionId": "g-compliance-v1",
   "meta": {
@@ -549,9 +799,15 @@
     "instanceId": ""
   },
   "tags": [
-    {"name": "victoria-tl3"},
-    {"name": "compliance"},
-    {"name": "monitoring"}
+    {
+      "name": "victoria-tl3"
+    },
+    {
+      "name": "compliance"
+    },
+    {
+      "name": "monitoring"
+    }
   ],
   "pinData": {}
 }

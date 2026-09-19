@@ -115,7 +115,8 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
   },
   "pinData": {}
 }

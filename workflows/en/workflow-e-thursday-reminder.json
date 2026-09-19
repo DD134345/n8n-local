@@ -25,14 +25,65 @@
     },
     {
       "parameters": {
-        "jsCode": "// Calculate current week's Monday date for lookup\nconst now = new Date();\nconst dayOfWeek = now.getDay();\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));\n\n// Format as DD/MM/YYYY to match Sheet format\nconst dd = String(monday.getDate()).padStart(2, '0');\nconst mm = String(monday.getMonth() + 1).padStart(2, '0');\nconst yyyy = monday.getFullYear();\n\n// Also calculate the whole week range for searching\nconst weekDates = [];\nfor (let i = 0; i < 5; i++) {\n  const d = new Date(monday);\n  d.setDate(monday.getDate() + i);\n  weekDates.push(\n    String(d.getDate()).padStart(2, '0') + '/' +\n    String(d.getMonth() + 1).padStart(2, '0') + '/' +\n    d.getFullYear()\n  );\n}\n\nreturn [{\n  json: {\n    week_start: `${dd}/${mm}/${yyyy}`,\n    week_dates: weekDates,\n    check_type: 'thursday_reminder'\n  }\n}];"
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "list",
+          "cachedResultName": "Config"
+        },
+        "options": {
+          "range": "A:D"
+        }
+      },
+      "id": "e1000001-0001-4000-8000-000000000014",
+      "name": "Read Config Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        340
+      ],
+      "executeOnce": true,
+      "notesInFlow": true,
+      "notes": "Reads the Config tab of the Google Sheet. Replaces $vars, which n8n Community edition does not have.",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nreturn [{ json: cfg }];\n"
+      },
+      "id": "e1000001-0001-4000-8000-000000000015",
+      "name": "Read Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Folds the Key/Value rows into one object so later nodes can read it via $('Read Config')."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate NEXT week Monday date (Thursday/Friday reminder looks at upcoming week)\nconst now = new Date();\nconst dayOfWeek = now.getDay(); // 0 is Sun, 4 is Thu, 5 is Fri\n\n// Next Monday is (7 - dayOfWeek + 1) % 7 + (dayOfWeek === 1 ? 7 : 0)\n// If today is Thursday (4), days until next Monday = 4 days\n// If today is Friday (5), days until next Monday = 3 days\nconst daysUntilNextMonday = ((1 - dayOfWeek + 7) % 7) || 7;\nconst nextMonday = new Date(now);\nnextMonday.setDate(now.getDate() + daysUntilNextMonday);\n\n// Format DD/MM/YYYY to match Sheet format\nconst dd = String(nextMonday.getDate()).padStart(2, \"0\");\nconst mm = String(nextMonday.getMonth() + 1).padStart(2, \"0\");\nconst yyyy = nextMonday.getFullYear();\n\n// Calculate whole working week range (Mon to Fri) for searching\nconst weekDates = [];\nfor (let i = 0; i < 5; i++) {\n  const d = new Date(nextMonday);\n  d.setDate(nextMonday.getDate() + i);\n  weekDates.push(\n    String(d.getDate()).padStart(2, \"0\") + \"/\" +\n    String(d.getMonth() + 1).padStart(2, \"0\") + \"/\" +\n    d.getFullYear()\n  );\n}\n\nreturn [{\n  json: {\n    week_start: `${dd}/${mm}/${yyyy}`,\n    week_dates: weekDates,\n    check_type: dayOfWeek === 5 ? \"friday_escalation\" : \"thursday_reminder\"\n  }\n}];"
       },
       "id": "e1000001-0001-4000-8000-000000000002",
       "name": "Calculate Week Dates",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        440,
+        920,
         340
       ]
     },
@@ -59,7 +110,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        680,
+        1160,
         340
       ],
       "credentials": {
@@ -78,7 +129,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        920,
+        1400,
         340
       ]
     },
@@ -111,30 +162,33 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1160,
+        1640,
         340
       ]
     },
     {
       "parameters": {
-        "sendTo": "={{ $vars.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn' }}",
+        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config')?.first()?.json?.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn') || 'bantru@victoria.edu.vn' }}",
         "subject": "=[REMINDER] This week's menu is incomplete - Victoria TL3",
-        "emailType": "html",
-        "message": "=<h2>&#128203; Menu entry reminder</h2>\n<p>Hello,</p>\n<p>The system has found that this week's menu is <strong>incomplete</strong>.</p>\n<p><strong>{{ $json.summary }}</strong></p>\n<h3>Missing days:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Please update the menu in the <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit\">data sheet</a> before the end of today.</p>\n<p><em>If it is not updated before 12:00 on Friday, the system will notify the Principal.</em></p>\n<hr>\n<p><em>Automated email from the Victoria TL3 system.</em></p>",
-        "options": {}
+        "emailFormat": "html",
+        "html": "=<h2>&#128203; Menu entry reminder</h2>\n<p>Hello,</p>\n<p>The system has found that this week's menu is <strong>incomplete</strong>.</p>\n<p><strong>{{ $json.summary }}</strong></p>\n<h3>Missing days:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Please update the menu in the <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit\">data sheet</a> before the end of today.</p>\n<p><em>If it is not updated before 12:00 on Friday, the system will notify the Principal.</em></p>\n<hr>\n<p><em>Automated email from the Victoria TL3 system.</em></p>",
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "e1000001-0001-4000-8000-000000000006",
-      "name": "Gmail - Thursday Reminder",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email - Thursday Reminder",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1400,
+        1880,
         240
       ],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
-          "name": "Gmail OAuth2"
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
         }
       }
     },
@@ -148,7 +202,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1640,
+        2120,
         240
       ],
       "webhookId": "e-wait-friday"
@@ -176,7 +230,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        1880,
+        2360,
         240
       ],
       "credentials": {
@@ -195,7 +249,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2120,
+        2600,
         240
       ]
     },
@@ -228,31 +282,34 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        2340,
+        2820,
         240
       ]
     },
     {
       "parameters": {
-        "sendTo": "={{ $vars.HIEU_TRUONG_EMAIL || 'hieutruong@victoria.edu.vn' }}",
-        "ccEmails": "={{ $vars.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn' }}",
+        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config')?.first()?.json?.HIEU_TRUONG_EMAIL || 'hieutruong@victoria.edu.vn') || 'hieutruong@victoria.edu.vn' }}",
+        "ccEmail": "={{ ($('Read Config')?.first()?.json?.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn') || 'bantru@victoria.edu.vn' }}",
         "subject": "=[URGENT] This week's menu is still not published - Victoria TL3",
-        "emailType": "html",
-        "message": "=<h2>&#128680; Alert: the menu has not been updated</h2>\n<p>Dear Principal,</p>\n<p>Following Thursday's reminder, this week's menu is <strong>still incomplete</strong>.</p>\n<h3>Days still missing:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Under Circular 09/2024, the menu must be published on the school website. Please coordinate with the boarding-meals team to complete it.</p>\n<hr>\n<p><em>Automated email from the Victoria TL3 system. The boarding-meals team is copied.</em></p>",
-        "options": {}
+        "emailFormat": "html",
+        "html": "=<h2>&#128680; Alert: the menu has not been updated</h2>\n<p>Dear Principal,</p>\n<p>Following Thursday's reminder, this week's menu is <strong>still incomplete</strong>.</p>\n<h3>Days still missing:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Under Circular 09/2024, the menu must be published on the school website. Please coordinate with the boarding-meals team to complete it.</p>\n<hr>\n<p><em>Automated email from the Victoria TL3 system. The boarding-meals team is copied.</em></p>",
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "e1000001-0001-4000-8000-000000000011",
-      "name": "Gmail - Friday Escalation",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email - Friday Escalation",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        2580,
+        3060,
         140
       ],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
-          "name": "Gmail OAuth2"
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
         }
       }
     },
@@ -263,7 +320,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1400,
+        1880,
         460
       ]
     },
@@ -274,7 +331,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2580,
+        3060,
         360
       ]
     }
@@ -284,7 +341,7 @@
       "main": [
         [
           {
-            "node": "Calculate Week Dates",
+            "node": "Read Config Sheet",
             "type": "main",
             "index": 0
           }
@@ -328,7 +385,7 @@
       "main": [
         [
           {
-            "node": "Gmail - Thursday Reminder",
+            "node": "Email - Thursday Reminder",
             "type": "main",
             "index": 0
           }
@@ -336,17 +393,6 @@
         [
           {
             "node": "No Op - All Good Thursday",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Gmail - Thursday Reminder": {
-      "main": [
-        [
-          {
-            "node": "Wait - Until Friday Noon",
             "type": "main",
             "index": 0
           }
@@ -390,7 +436,7 @@
       "main": [
         [
           {
-            "node": "Gmail - Friday Escalation",
+            "node": "Email - Friday Escalation",
             "type": "main",
             "index": 0
           }
@@ -403,13 +449,47 @@
           }
         ]
       ]
+    },
+    "Read Config Sheet": {
+      "main": [
+        [
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "Calculate Week Dates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email - Thursday Reminder": {
+      "main": [
+        [
+          {
+            "node": "Wait - Until Friday Noon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
   },
   "versionId": "e-reminder-v1",
   "meta": {

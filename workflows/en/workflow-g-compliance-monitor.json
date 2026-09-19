@@ -33,6 +33,57 @@
         },
         "sheetName": {
           "__rl": true,
+          "value": "Config",
+          "mode": "list",
+          "cachedResultName": "Config"
+        },
+        "options": {
+          "range": "A:D"
+        }
+      },
+      "id": "g1000001-0001-4000-8000-000000000019",
+      "name": "Read Config Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        340
+      ],
+      "executeOnce": true,
+      "notesInFlow": true,
+      "notes": "Reads the Config tab of the Google Sheet. Replaces $vars, which n8n Community edition does not have.",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nreturn [{ json: cfg }];\n"
+      },
+      "id": "g1000001-0001-4000-8000-000000000020",
+      "name": "Read Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Folds the Key/Value rows into one object so later nodes can read it via $('Read Config')."
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
           "value": "Compliance",
           "mode": "name"
         },
@@ -45,7 +96,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        440,
+        920,
         340
       ],
       "credentials": {
@@ -64,7 +115,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        680,
+        1160,
         340
       ]
     },
@@ -78,7 +129,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        920,
+        1400,
         340
       ]
     },
@@ -106,7 +157,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1160,
+        1640,
         340
       ]
     },
@@ -119,7 +170,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
+        1880,
         340
       ]
     },
@@ -183,6 +234,15 @@
               "display": true,
               "type": "string",
               "canBeUsedToMatch": false
+            },
+            {
+              "id": "Check URL",
+              "displayName": "Check URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
             }
           ]
         },
@@ -193,7 +253,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        1640,
+        2120,
         340
       ],
       "credentials": {
@@ -205,14 +265,14 @@
     },
     {
       "parameters": {
-        "jsCode": "// Collect all results and check for failures\n// This runs after the batch loop completes\nconst allResults = $('Evaluate Response').all();\n\nconst failures = allResults.filter(r => r.json.status !== 'PASS');\nconst passes = allResults.filter(r => r.json.status === 'PASS');\n\nconst summary = {\n  total: allResults.length,\n  pass_count: passes.length,\n  fail_count: failures.length,\n  has_failures: failures.length > 0,\n  failures: failures.map(f => ({\n    url: f.json.url,\n    status: f.json.status,\n    note: f.json.note,\n    noi_dung: f.json.noi_dung\n  })),\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: summary }];"
+        "jsCode": "// Collect all results and check failures\n// runs after batch loop completes\nconst allResults = $('Evaluate Response').all();\n\nconst failures = allResults.filter(r => r.json.status !== \"PASS\");\nconst passes = allResults.filter(r => r.json.status === \"PASS\");\n\nconst summary = {\n  total: allResults.length,\n  pass_count: passes.length,\n  fail_count: failures.length,\n  has_failures: failures.length > 0,\n  failures: failures.map(f => ({\n    url: f.json.url,\n    status: f.json.status,\n    note: f.json.note,\n    noi_dung: f.json.noi_dung || f.json.check_content || \"\"\n  })),\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: summary }];"
       },
       "id": "g1000001-0001-4000-8000-000000000008",
       "name": "Aggregate Results",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1160,
+        1640,
         580
       ]
     },
@@ -245,7 +305,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1400,
+        1880,
         580
       ]
     },
@@ -262,7 +322,7 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        1640,
+        2120,
         480
       ],
       "onError": "continueRegularOutput"
@@ -281,7 +341,7 @@
       "type": "@n8n/n8n-nodes-langchain.lmOllama",
       "typeVersion": 1,
       "position": [
-        1540,
+        2020,
         680
       ],
       "credentials": {
@@ -293,24 +353,27 @@
     },
     {
       "parameters": {
-        "sendTo": "={{ $vars.ADMIN_EMAIL || 'admin@victoria.edu.vn' }}",
+        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') || 'admin@victoria.edu.vn' }}",
         "subject": "=[ALERT] Website compliance check - {{ $json.fail_count || '' }} URLs failing",
-        "emailType": "html",
-        "message": "=<h2>&#128269; Victoria TL3 website compliance report</h2>\n<p><strong>Time:</strong> {{ $('Aggregate Results').first().json.timestamp }}</p>\n<p><strong>Total URLs:</strong> {{ $('Aggregate Results').first().json.total }} | <strong>Passed:</strong> {{ $('Aggregate Results').first().json.pass_count }} | <strong>Failed:</strong> {{ $('Aggregate Results').first().json.fail_count }}</p>\n<hr>\n<h3>AI analysis:</h3>\n<div>{{ $json.output || $json.text || 'Analysis unavailable' }}</div>\n<hr>\n<p><em>Full detail: <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit#gid=compliance\">Compliance sheet</a></em></p>\n<p><em>Automated email from the Victoria TL3 system.</em></p>",
-        "options": {}
+        "emailFormat": "html",
+        "html": "=<h2>&#128269; Victoria TL3 website compliance report</h2>\n<p><strong>Time:</strong> {{ $('Aggregate Results').first().json.timestamp }}</p>\n<p><strong>Total URLs:</strong> {{ $('Aggregate Results').first().json.total }} | <strong>Passed:</strong> {{ $('Aggregate Results').first().json.pass_count }} | <strong>Failed:</strong> {{ $('Aggregate Results').first().json.fail_count }}</p>\n<hr>\n<h3>AI analysis:</h3>\n<div>{{ $json.output || $json.text || 'Analysis unavailable' }}</div>\n<hr>\n<p><em>Full detail: <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit#gid=compliance\">Compliance sheet</a></em></p>\n<p><em>Automated email from the Victoria TL3 system.</em></p>",
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "g1000001-0001-4000-8000-000000000012",
-      "name": "Gmail - Compliance Alert",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email - Compliance Alert",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1920,
+        2400,
         480
       ],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
-          "name": "Gmail OAuth2"
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
         }
       }
     },
@@ -321,7 +384,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1640,
+        2120,
         700
       ]
     },
@@ -369,7 +432,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        440,
+        920,
         800
       ],
       "credentials": {
@@ -392,7 +455,7 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        680,
+        1160,
         800
       ]
     },
@@ -410,7 +473,7 @@
       "type": "@n8n/n8n-nodes-langchain.lmOllama",
       "typeVersion": 1,
       "position": [
-        580,
+        1060,
         1000
       ],
       "credentials": {
@@ -422,26 +485,80 @@
     },
     {
       "parameters": {
-        "sendTo": "={{ $vars.BGD_EMAIL || 'bgd@victoria.edu.vn' }}",
+        "fromEmail": "={{ ($('Read Config Weekly')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config Weekly')?.first()?.json?.BGD_EMAIL || 'bgd@victoria.edu.vn') || 'bgd@victoria.edu.vn' }}",
         "subject": "=[WEEKLY REPORT] Victoria website compliance - week of {{ new Date().toLocaleDateString('en-GB') }}",
-        "emailType": "html",
-        "message": "={{ $json.output || $json.text || 'Report unavailable' }}",
-        "options": {}
+        "emailFormat": "html",
+        "html": "={{ $json.output || $json.text || 'Report unavailable' }}",
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "g1000001-0001-4000-8000-000000000018",
-      "name": "Gmail - Weekly Report to BGD",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email - Weekly Report to BGD",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        920,
+        1400,
         800
       ],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
-          "name": "Gmail OAuth2"
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "list",
+          "cachedResultName": "Config"
+        },
+        "options": {
+          "range": "A:D"
+        }
+      },
+      "id": "g1000001-0001-4000-8000-000000000021",
+      "name": "Read Config Sheet Weekly",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        800
+      ],
+      "executeOnce": true,
+      "notesInFlow": true,
+      "notes": "Reads the Config tab of the Google Sheet. Replaces $vars, which n8n Community edition does not have.",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nreturn [{ json: cfg }];\n"
+      },
+      "id": "g1000001-0001-4000-8000-000000000022",
+      "name": "Read Config Weekly",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        800
+      ],
+      "notesInFlow": true,
+      "notes": "Folds the Key/Value rows into one object so later nodes can read it via $('Read Config')."
     }
   ],
   "connections": {
@@ -449,7 +566,7 @@
       "main": [
         [
           {
-            "node": "Read Compliance URLs",
+            "node": "Read Config Sheet",
             "type": "main",
             "index": 0
           }
@@ -482,14 +599,14 @@
       "main": [
         [
           {
-            "node": "HTTP - Check URL",
+            "node": "Aggregate Results",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Aggregate Results",
+            "node": "HTTP - Check URL",
             "type": "main",
             "index": 0
           }
@@ -562,7 +679,7 @@
       "main": [
         [
           {
-            "node": "Gmail - Compliance Alert",
+            "node": "Email - Compliance Alert",
             "type": "main",
             "index": 0
           }
@@ -584,7 +701,7 @@
       "main": [
         [
           {
-            "node": "Read Weekly Compliance",
+            "node": "Read Config Sheet Weekly",
             "type": "main",
             "index": 0
           }
@@ -617,7 +734,51 @@
       "main": [
         [
           {
-            "node": "Gmail - Weekly Report to BGD",
+            "node": "Email - Weekly Report to BGD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config Sheet": {
+      "main": [
+        [
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "Read Compliance URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config Sheet Weekly": {
+      "main": [
+        [
+          {
+            "node": "Read Config Weekly",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config Weekly": {
+      "main": [
+        [
+          {
+            "node": "Read Weekly Compliance",
             "type": "main",
             "index": 0
           }
@@ -629,7 +790,8 @@
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
   },
   "versionId": "g-compliance-v1",
   "meta": {

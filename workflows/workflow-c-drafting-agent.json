@@ -28,7 +28,10 @@
       "name": "Sheets Trigger - New Content",
       "type": "n8n-nodes-base.googleSheetsTrigger",
       "typeVersion": 1,
-      "position": [200, 340],
+      "position": [
+        200,
+        340
+      ],
       "credentials": {
         "googleSheetsTriggerOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
@@ -64,7 +67,10 @@
       "name": "IF - Drafts Empty",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [440, 340]
+      "position": [
+        440,
+        340
+      ]
     },
     {
       "parameters": {
@@ -78,7 +84,10 @@
       "name": "AI Agent - Ollama Drafting",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
-      "position": [700, 240],
+      "position": [
+        700,
+        240
+      ],
       "onError": "continueErrorOutput"
     },
     {
@@ -94,7 +103,10 @@
       "name": "Ollama Model",
       "type": "@n8n/n8n-nodes-langchain.lmOllama",
       "typeVersion": 1,
-      "position": [600, 460],
+      "position": [
+        600,
+        460
+      ],
       "credentials": {
         "ollamaApi": {
           "id": "[YOUR_OLLAMA_CREDENTIAL_ID]",
@@ -114,7 +126,10 @@
       "name": "AI Agent - Gemini Fallback",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
-      "position": [700, 540]
+      "position": [
+        700,
+        540
+      ]
     },
     {
       "parameters": {
@@ -128,7 +143,10 @@
       "name": "Gemini Model",
       "type": "@n8n/n8n-nodes-langchain.lmGoogleGemini",
       "typeVersion": 1,
-      "position": [600, 720],
+      "position": [
+        600,
+        720
+      ],
       "credentials": {
         "googleGeminiApi": {
           "id": "CREDENTIAL_ID_GEMINI",
@@ -144,7 +162,10 @@
       "name": "Parse AI Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [960, 340]
+      "position": [
+        960,
+        340
+      ]
     },
     {
       "parameters": {
@@ -167,11 +188,46 @@
             "Bản Zalo": "={{ $json.ban_zalo }}",
             "Bản Facebook": "={{ $json.ban_facebook }}"
           },
-          "matchingColumns": ["row_number"],
+          "matchingColumns": [
+            "row_number"
+          ],
           "schema": [
-            {"id": "Bản website", "displayName": "Bản website", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
-            {"id": "Bản Zalo", "displayName": "Bản Zalo", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
-            {"id": "Bản Facebook", "displayName": "Bản Facebook", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+            {
+              "id": "Bản website",
+              "displayName": "Bản website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Bản Zalo",
+              "displayName": "Bản Zalo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Bản Facebook",
+              "displayName": "Bản Facebook",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
           ]
         },
         "options": {}
@@ -180,7 +236,10 @@
       "name": "Update Sheet - Write Drafts",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1200, 340],
+      "position": [
+        1200,
+        340
+      ],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
@@ -194,7 +253,10 @@
       "name": "No Op - Already Has Drafts",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [440, 540]
+      "position": [
+        440,
+        540
+      ]
     }
   ],
   "connections": {
@@ -294,7 +356,8 @@
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
   },
   "versionId": "c-drafting-v1",
   "meta": {
@@ -302,9 +365,15 @@
     "instanceId": ""
   },
   "tags": [
-    {"name": "victoria-tl3"},
-    {"name": "agentic"},
-    {"name": "drafting"}
+    {
+      "name": "victoria-tl3"
+    },
+    {
+      "name": "agentic"
+    },
+    {
+      "name": "drafting"
+    }
   ],
   "pinData": {}
 }

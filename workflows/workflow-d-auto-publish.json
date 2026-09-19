@@ -23,20 +23,76 @@
         },
         "event": "rowUpdate",
         "options": {
-          "columnsToWatch": ["Duyệt"]
+          "columnsToWatch": [
+            "Duyệt"
+          ]
         }
       },
       "id": "d1000001-0001-4000-8000-000000000001",
       "name": "Sheets Trigger - Approval Changed",
       "type": "n8n-nodes-base.googleSheetsTrigger",
       "typeVersion": 1,
-      "position": [200, 340],
+      "position": [
+        200,
+        340
+      ],
       "credentials": {
         "googleSheetsTriggerOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
           "name": "Google Sheets Trigger OAuth2"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "list",
+          "cachedResultName": "Config"
+        },
+        "options": {
+          "range": "A:D"
+        }
+      },
+      "id": "d1000001-0001-4000-8000-000000000011",
+      "name": "Read Config Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        340
+      ],
+      "executeOnce": true,
+      "notesInFlow": true,
+      "notes": "Đọc tab Config của Google Sheet. Thay cho $vars (n8n Community không có biến tùy chỉnh).",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\n// Carry the triggering rows through so downstream nodes keep their data,\n// while $('Read Config').first().json.KEY still resolves.\nconst rows = $('Sheets Trigger - Approval Changed').all();\nif (rows.length === 0) return [{ json: cfg }];\nreturn rows.map((item, i) => ({ json: { ...cfg, ...item.json }, pairedItem: { item: i } }));\n"
+      },
+      "id": "d1000001-0001-4000-8000-000000000012",
+      "name": "Read Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Gộp các dòng Key/Value thành một object để các node sau gọi qua $('Read Config')."
     },
     {
       "parameters": {
@@ -49,7 +105,7 @@
           "conditions": [
             {
               "id": "cond-approved",
-              "leftValue": "={{ $json['Duyệt'] === true }}",
+              "leftValue": "={{ $json[\"Duyệt\"] === true || String($json[\"Duyệt\"]).toLowerCase() === \"true\" }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -59,7 +115,17 @@
             },
             {
               "id": "cond-not-posted",
-              "leftValue": "={{ $json['Đã đăng'] !== true }}",
+              "leftValue": "={{ $json[\"Đã đăng\"] !== true && String($json[\"Đã đăng\"]).toLowerCase() !== \"true\" }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "cond-no-post-url",
+              "leftValue": "={{ !$json[\"URL bài đăng\"] || String($json[\"URL bài đăng\"]).trim() === \"\" }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -76,7 +142,10 @@
       "name": "IF - Approved and Not Posted",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [440, 340]
+      "position": [
+        920,
+        340
+      ]
     },
     {
       "parameters": {
@@ -86,7 +155,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "leftValue": "={{ $vars.CMS_TYPE || 'wordpress' }}",
+                    "leftValue": "={{ ($('Read Config')?.first()?.json?.CMS_TYPE || 'wordpress') || 'wordpress' }}",
                     "rightValue": "wordpress",
                     "operator": {
                       "type": "string",
@@ -101,7 +170,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "leftValue": "={{ $vars.CMS_TYPE || 'wordpress' }}",
+                    "leftValue": "={{ ($('Read Config')?.first()?.json?.CMS_TYPE || 'wordpress') || 'wordpress' }}",
                     "rightValue": "manual",
                     "operator": {
                       "type": "string",
@@ -124,11 +193,14 @@
       "name": "Switch - CMS Type",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
-      "position": [680, 340]
+      "position": [
+        1160,
+        340
+      ]
     },
     {
       "parameters": {
-        "url": "={{ $vars.WORDPRESS_URL || 'https://your-school-site.edu.vn' }}/wp-json/wp/v2/posts",
+        "url": "={{ ($('Read Config')?.first()?.json?.WORDPRESS_URL || 'https://victoria-thanglong3.edu.vn') || 'https://your-school-site.edu.vn' }}/wp-json/wp/v2/posts",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
         "sendBody": true,
@@ -142,7 +214,10 @@
       "name": "WordPress - Create Post",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [920, 220],
+      "position": [
+        1400,
+        220
+      ],
       "credentials": {
         "httpBasicAuth": {
           "id": "CREDENTIAL_ID_WP",
@@ -172,6 +247,12 @@
               "name": "publish_method",
               "value": "WordPress API",
               "type": "string"
+            },
+            {
+              "id": "set-row-number",
+              "name": "row_number",
+              "value": "={{ $(\"Sheets Trigger - Approval Changed\").item.json.row_number }}",
+              "type": "number"
             }
           ]
         },
@@ -181,25 +262,34 @@
       "name": "Set - WordPress Success",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [1160, 140]
+      "position": [
+        1640,
+        140
+      ]
     },
     {
       "parameters": {
-        "sendTo": "={{ $vars.POSTER_EMAIL || 'poster@victoria.edu.vn' }}",
+        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config')?.first()?.json?.POSTER_EMAIL || 'poster@victoria.edu.vn') || 'poster@victoria.edu.vn' }}",
         "subject": "=[CẦN ĐĂNG] {{ $json['Ngày'] }} - Thực đơn Victoria TL3",
-        "emailType": "html",
-        "message": "=<h2>Nội dung cần đăng lên website</h2>\n<p><strong>Ngày:</strong> {{ $json['Ngày'] }}</p>\n<p><strong>Người duyệt:</strong> {{ $json['Người duyệt'] }}</p>\n<p><strong>Thời điểm duyệt:</strong> {{ $json['Thời điểm duyệt'] }}</p>\n<hr>\n<h3>Bản website (copy & paste vào CMS):</h3>\n{{ $json['Bản website'] }}\n<hr>\n<h3>Bản Zalo:</h3>\n<pre>{{ $json['Bản Zalo'] }}</pre>\n<hr>\n<h3>Bản Facebook:</h3>\n<pre>{{ $json['Bản Facebook'] }}</pre>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3. Vui lòng đăng nội dung trên lên website và đánh dấu \"Đã đăng\" trong bảng tính.</em></p>",
-        "options": {}
+        "emailFormat": "html",
+        "html": "=<h2>Nội dung cần đăng lên website</h2>\n<p><strong>Ngày:</strong> {{ $json['Ngày'] }}</p>\n<p><strong>Người duyệt:</strong> {{ $json['Người duyệt'] }}</p>\n<p><strong>Thời điểm duyệt:</strong> {{ $json['Thời điểm duyệt'] }}</p>\n<hr>\n<h3>Bản website (copy & paste vào CMS):</h3>\n{{ $json['Bản website'] }}\n<hr>\n<h3>Bản Zalo:</h3>\n<pre>{{ $json['Bản Zalo'] }}</pre>\n<hr>\n<h3>Bản Facebook:</h3>\n<pre>{{ $json['Bản Facebook'] }}</pre>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3. Vui lòng đăng nội dung trên lên website và đánh dấu \"Đã đăng\" trong bảng tính.</em></p>",
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "d1000001-0001-4000-8000-000000000006",
-      "name": "Gmail - Manual Publish Email",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email - Manual Publish",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [920, 460],
+      "position": [
+        1400,
+        460
+      ],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
-          "name": "Gmail OAuth2"
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
         }
       }
     },
@@ -224,6 +314,12 @@
               "name": "publish_method",
               "value": "Email to poster",
               "type": "string"
+            },
+            {
+              "id": "set-row-number-manual",
+              "name": "row_number",
+              "value": "={{ $(\"Sheets Trigger - Approval Changed\").item.json.row_number }}",
+              "type": "number"
             }
           ]
         },
@@ -233,25 +329,34 @@
       "name": "Set - Manual Success",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [1160, 460]
+      "position": [
+        1640,
+        460
+      ]
     },
     {
       "parameters": {
-        "sendTo": "={{ $vars.ADMIN_EMAIL || 'admin@victoria.edu.vn' }}",
+        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') || 'admin@victoria.edu.vn' }}",
         "subject": "=[LỖI] Không thể đăng bài tự động - {{ $json['Ngày'] }}",
-        "emailType": "html",
-        "message": "=<h2>⚠️ Lỗi đăng bài tự động</h2>\n<p>WordPress API trả về lỗi. Nội dung đã được gửi qua email cho người đăng bài.</p>\n<p><strong>Ngày:</strong> {{ $json['Ngày'] }}</p>\n<p><strong>Chi tiết lỗi:</strong> {{ $json.error?.message || 'Unknown error' }}</p>\n<p><em>Vui lòng kiểm tra kết nối WordPress API.</em></p>",
-        "options": {}
+        "emailFormat": "html",
+        "html": "=<h2>⚠️ Lỗi đăng bài tự động</h2>\n<p>WordPress API trả về lỗi. Nội dung đã được gửi qua email cho người đăng bài.</p>\n<p><strong>Ngày:</strong> {{ $json['Ngày'] }}</p>\n<p><strong>Chi tiết lỗi:</strong> {{ $json.error?.message || 'Unknown error' }}</p>\n<p><em>Vui lòng kiểm tra kết nối WordPress API.</em></p>",
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "d1000001-0001-4000-8000-000000000008",
-      "name": "Gmail - WP Error Alert",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email - WP Error Alert",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [1160, 300],
+      "position": [
+        1640,
+        300
+      ],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
-          "name": "Gmail OAuth2"
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
         }
       }
     },
@@ -276,11 +381,46 @@
             "URL bài đăng": "={{ $json.post_url }}",
             "Ghi chú": "={{ $json.publish_method }} - {{ $now.toISO() }}"
           },
-          "matchingColumns": ["row_number"],
+          "matchingColumns": [
+            "row_number"
+          ],
           "schema": [
-            {"id": "Đã đăng", "displayName": "Đã đăng", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
-            {"id": "URL bài đăng", "displayName": "URL bài đăng", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
-            {"id": "Ghi chú", "displayName": "Ghi chú", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+            {
+              "id": "Đã đăng",
+              "displayName": "Đã đăng",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL bài đăng",
+              "displayName": "URL bài đăng",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Ghi chú",
+              "displayName": "Ghi chú",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
           ]
         },
         "options": {}
@@ -289,7 +429,10 @@
       "name": "Update Sheet - Mark Published",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1420, 340],
+      "position": [
+        1900,
+        340
+      ],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
@@ -303,7 +446,140 @@
       "name": "No Op - Skip",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [680, 560]
+      "position": [
+        1160,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Audit Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss') }}",
+            "Tab": "Thực đơn",
+            "Row": "={{ $json.row_number }}",
+            "Content date": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Ng\\u00e0y\"] || '' }}",
+            "Approved by": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Ng\\u01b0\\u1eddi duy\\u1ec7t\"] || '' }}",
+            "Approved at": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Th\\u1eddi \\u0111i\\u1ec3m duy\\u1ec7t\"] || '' }}",
+            "Method": "={{ $json.publish_method }}",
+            "Post URL": "={{ $json.post_url }}",
+            "Result": "SUCCESS"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Tab",
+              "displayName": "Tab",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Row",
+              "displayName": "Row",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Content date",
+              "displayName": "Content date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Approved by",
+              "displayName": "Approved by",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Approved at",
+              "displayName": "Approved at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Method",
+              "displayName": "Method",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Post URL",
+              "displayName": "Post URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Result",
+              "displayName": "Result",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d1000001-0001-4000-8000-000000000013",
+      "name": "Append Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2140,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Ghi một dòng vào Audit Log cho mỗi lần đăng. Chỉ thêm, không sửa — đây là bằng chứng truy vết.",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
     }
   ],
   "connections": {
@@ -311,7 +587,7 @@
       "main": [
         [
           {
-            "node": "IF - Approved and Not Posted",
+            "node": "Read Config Sheet",
             "type": "main",
             "index": 0
           }
@@ -347,14 +623,14 @@
         ],
         [
           {
-            "node": "Gmail - Manual Publish Email",
+            "node": "Email - Manual Publish",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Gmail - Manual Publish Email",
+            "node": "Email - Manual Publish",
             "type": "main",
             "index": 0
           }
@@ -372,18 +648,7 @@
         ],
         [
           {
-            "node": "Gmail - WP Error Alert",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Gmail - WP Error Alert": {
-      "main": [
-        [
-          {
-            "node": "Gmail - Manual Publish Email",
+            "node": "Email - WP Error Alert",
             "type": "main",
             "index": 0
           }
@@ -401,7 +666,40 @@
         ]
       ]
     },
-    "Gmail - Manual Publish Email": {
+    "Set - Manual Success": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet - Mark Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config Sheet": {
+      "main": [
+        [
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "IF - Approved and Not Posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email - Manual Publish": {
       "main": [
         [
           {
@@ -412,11 +710,22 @@
         ]
       ]
     },
-    "Set - Manual Success": {
+    "Email - WP Error Alert": {
       "main": [
         [
           {
-            "node": "Update Sheet - Mark Published",
+            "node": "Email - Manual Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Sheet - Mark Published": {
+      "main": [
+        [
+          {
+            "node": "Append Audit Log",
             "type": "main",
             "index": 0
           }
@@ -428,7 +737,8 @@
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
   },
   "versionId": "d-publish-v1",
   "meta": {
@@ -436,8 +746,12 @@
     "instanceId": ""
   },
   "tags": [
-    {"name": "victoria-tl3"},
-    {"name": "publishing"}
+    {
+      "name": "victoria-tl3"
+    },
+    {
+      "name": "publishing"
+    }
   ],
   "pinData": {}
 }

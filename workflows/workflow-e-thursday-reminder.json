@@ -16,19 +16,76 @@
       "name": "Cron - Thursday 8AM",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 340],
+      "position": [
+        200,
+        340
+      ],
       "notesInFlow": true,
       "notes": "Every Thursday at 08:00 ICT (UTC+7)\nAdjust cron if server timezone ≠ ICT:\n0 1 * * 4 for UTC"
     },
     {
       "parameters": {
-        "jsCode": "// Calculate current week's Monday date for lookup\nconst now = new Date();\nconst dayOfWeek = now.getDay();\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));\n\n// Format as DD/MM/YYYY to match Sheet format\nconst dd = String(monday.getDate()).padStart(2, '0');\nconst mm = String(monday.getMonth() + 1).padStart(2, '0');\nconst yyyy = monday.getFullYear();\n\n// Also calculate the whole week range for searching\nconst weekDates = [];\nfor (let i = 0; i < 5; i++) {\n  const d = new Date(monday);\n  d.setDate(monday.getDate() + i);\n  weekDates.push(\n    String(d.getDate()).padStart(2, '0') + '/' +\n    String(d.getMonth() + 1).padStart(2, '0') + '/' +\n    d.getFullYear()\n  );\n}\n\nreturn [{\n  json: {\n    week_start: `${dd}/${mm}/${yyyy}`,\n    week_dates: weekDates,\n    check_type: 'thursday_reminder'\n  }\n}];"
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "list",
+          "cachedResultName": "Config"
+        },
+        "options": {
+          "range": "A:D"
+        }
+      },
+      "id": "e1000001-0001-4000-8000-000000000014",
+      "name": "Read Config Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        340
+      ],
+      "executeOnce": true,
+      "notesInFlow": true,
+      "notes": "Đọc tab Config của Google Sheet. Thay cho $vars (n8n Community không có biến tùy chỉnh).",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nreturn [{ json: cfg }];\n"
+      },
+      "id": "e1000001-0001-4000-8000-000000000015",
+      "name": "Read Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Gộp các dòng Key/Value thành một object để các node sau gọi qua $('Read Config')."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate NEXT week Monday date (Thursday/Friday reminder looks at upcoming week)\nconst now = new Date();\nconst dayOfWeek = now.getDay(); // 0 is Sun, 4 is Thu, 5 is Fri\n\n// Next Monday is (7 - dayOfWeek + 1) % 7 + (dayOfWeek === 1 ? 7 : 0)\n// If today is Thursday (4), days until next Monday = 4 days\n// If today is Friday (5), days until next Monday = 3 days\nconst daysUntilNextMonday = ((1 - dayOfWeek + 7) % 7) || 7;\nconst nextMonday = new Date(now);\nnextMonday.setDate(now.getDate() + daysUntilNextMonday);\n\n// Format DD/MM/YYYY to match Sheet format\nconst dd = String(nextMonday.getDate()).padStart(2, \"0\");\nconst mm = String(nextMonday.getMonth() + 1).padStart(2, \"0\");\nconst yyyy = nextMonday.getFullYear();\n\n// Calculate whole working week range (Mon to Fri) for searching\nconst weekDates = [];\nfor (let i = 0; i < 5; i++) {\n  const d = new Date(nextMonday);\n  d.setDate(nextMonday.getDate() + i);\n  weekDates.push(\n    String(d.getDate()).padStart(2, \"0\") + \"/\" +\n    String(d.getMonth() + 1).padStart(2, \"0\") + \"/\" +\n    d.getFullYear()\n  );\n}\n\nreturn [{\n  json: {\n    week_start: `${dd}/${mm}/${yyyy}`,\n    week_dates: weekDates,\n    check_type: dayOfWeek === 5 ? \"friday_escalation\" : \"thursday_reminder\"\n  }\n}];"
       },
       "id": "e1000001-0001-4000-8000-000000000002",
       "name": "Calculate Week Dates",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 340]
+      "position": [
+        920,
+        340
+      ]
     },
     {
       "parameters": {
@@ -52,7 +109,10 @@
       "name": "Read Menu Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [680, 340],
+      "position": [
+        1160,
+        340
+      ],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
@@ -68,7 +128,10 @@
       "name": "Check Missing Menus",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [920, 340]
+      "position": [
+        1400,
+        340
+      ]
     },
     {
       "parameters": {
@@ -98,25 +161,34 @@
       "name": "IF - Menu Missing",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1160, 340]
+      "position": [
+        1640,
+        340
+      ]
     },
     {
       "parameters": {
-        "sendTo": "={{ $vars.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn' }}",
+        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config')?.first()?.json?.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn') || 'bantru@victoria.edu.vn' }}",
         "subject": "=[NHẮC NHỞ] Thực đơn tuần này chưa đầy đủ - Victoria TL3",
-        "emailType": "html",
-        "message": "=<h2>📋 Nhắc nhở nhập thực đơn</h2>\n<p>Xin chào,</p>\n<p>Hệ thống kiểm tra thấy thực đơn tuần này <strong>chưa đầy đủ</strong>.</p>\n<p><strong>{{ $json.summary }}</strong></p>\n<h3>Ngày thiếu:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Vui lòng cập nhật thực đơn vào <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit\">bảng dữ liệu</a> trước cuối ngày hôm nay.</p>\n<p><em>Nếu không cập nhật trước 12:00 thứ Sáu, hệ thống sẽ thông báo đến Hiệu trưởng.</em></p>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3.</em></p>",
-        "options": {}
+        "emailFormat": "html",
+        "html": "=<h2>📋 Nhắc nhở nhập thực đơn</h2>\n<p>Xin chào,</p>\n<p>Hệ thống kiểm tra thấy thực đơn tuần này <strong>chưa đầy đủ</strong>.</p>\n<p><strong>{{ $json.summary }}</strong></p>\n<h3>Ngày thiếu:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Vui lòng cập nhật thực đơn vào <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit\">bảng dữ liệu</a> trước cuối ngày hôm nay.</p>\n<p><em>Nếu không cập nhật trước 12:00 thứ Sáu, hệ thống sẽ thông báo đến Hiệu trưởng.</em></p>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3.</em></p>",
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "e1000001-0001-4000-8000-000000000006",
-      "name": "Gmail - Thursday Reminder",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email - Thursday Reminder",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [1400, 240],
+      "position": [
+        1880,
+        240
+      ],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
-          "name": "Gmail OAuth2"
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
         }
       }
     },
@@ -129,7 +201,10 @@
       "name": "Wait - Until Friday Noon",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [1640, 240],
+      "position": [
+        2120,
+        240
+      ],
       "webhookId": "e-wait-friday"
     },
     {
@@ -154,7 +229,10 @@
       "name": "Re-Read Menu Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1880, 240],
+      "position": [
+        2360,
+        240
+      ],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
@@ -170,7 +248,10 @@
       "name": "Re-Check Missing",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2120, 240]
+      "position": [
+        2600,
+        240
+      ]
     },
     {
       "parameters": {
@@ -200,26 +281,35 @@
       "name": "IF - Still Missing Friday",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [2340, 240]
+      "position": [
+        2820,
+        240
+      ]
     },
     {
       "parameters": {
-        "sendTo": "={{ $vars.HIEU_TRUONG_EMAIL || 'hieutruong@victoria.edu.vn' }}",
-        "ccEmails": "={{ $vars.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn' }}",
+        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config')?.first()?.json?.HIEU_TRUONG_EMAIL || 'hieutruong@victoria.edu.vn') || 'hieutruong@victoria.edu.vn' }}",
+        "ccEmail": "={{ ($('Read Config')?.first()?.json?.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn') || 'bantru@victoria.edu.vn' }}",
         "subject": "=[KHẨN] Thực đơn tuần này vẫn chưa được cập nhật - Victoria TL3",
-        "emailType": "html",
-        "message": "=<h2>🚨 Cảnh báo: Thực đơn chưa được cập nhật</h2>\n<p>Kính gửi Hiệu trưởng,</p>\n<p>Sau khi nhắc nhở vào thứ Năm, thực đơn tuần này <strong>vẫn chưa được cập nhật đầy đủ</strong>.</p>\n<h3>Ngày còn thiếu:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Theo quy trình TT 09/2024, thực đơn cần được công khai trên website trường. Vui lòng phối hợp với bộ phận bán trú để hoàn tất.</p>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3. Bộ phận bán trú đã được CC.</em></p>",
-        "options": {}
+        "emailFormat": "html",
+        "html": "=<h2>🚨 Cảnh báo: Thực đơn chưa được cập nhật</h2>\n<p>Kính gửi Hiệu trưởng,</p>\n<p>Sau khi nhắc nhở vào thứ Năm, thực đơn tuần này <strong>vẫn chưa được cập nhật đầy đủ</strong>.</p>\n<h3>Ngày còn thiếu:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Theo quy trình TT 09/2024, thực đơn cần được công khai trên website trường. Vui lòng phối hợp với bộ phận bán trú để hoàn tất.</p>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3. Bộ phận bán trú đã được CC.</em></p>",
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "e1000001-0001-4000-8000-000000000011",
-      "name": "Gmail - Friday Escalation",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email - Friday Escalation",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [2580, 140],
+      "position": [
+        3060,
+        140
+      ],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
-          "name": "Gmail OAuth2"
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
         }
       }
     },
@@ -229,7 +319,10 @@
       "name": "No Op - All Good Thursday",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1400, 460]
+      "position": [
+        1880,
+        460
+      ]
     },
     {
       "parameters": {},
@@ -237,7 +330,10 @@
       "name": "No Op - Resolved By Friday",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2580, 360]
+      "position": [
+        3060,
+        360
+      ]
     }
   ],
   "connections": {
@@ -245,7 +341,7 @@
       "main": [
         [
           {
-            "node": "Calculate Week Dates",
+            "node": "Read Config Sheet",
             "type": "main",
             "index": 0
           }
@@ -289,7 +385,7 @@
       "main": [
         [
           {
-            "node": "Gmail - Thursday Reminder",
+            "node": "Email - Thursday Reminder",
             "type": "main",
             "index": 0
           }
@@ -297,17 +393,6 @@
         [
           {
             "node": "No Op - All Good Thursday",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Gmail - Thursday Reminder": {
-      "main": [
-        [
-          {
-            "node": "Wait - Until Friday Noon",
             "type": "main",
             "index": 0
           }
@@ -351,7 +436,7 @@
       "main": [
         [
           {
-            "node": "Gmail - Friday Escalation",
+            "node": "Email - Friday Escalation",
             "type": "main",
             "index": 0
           }
@@ -364,13 +449,47 @@
           }
         ]
       ]
+    },
+    "Read Config Sheet": {
+      "main": [
+        [
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "Calculate Week Dates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email - Thursday Reminder": {
+      "main": [
+        [
+          {
+            "node": "Wait - Until Friday Noon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
   },
   "versionId": "e-reminder-v1",
   "meta": {
@@ -378,8 +497,12 @@
     "instanceId": ""
   },
   "tags": [
-    {"name": "victoria-tl3"},
-    {"name": "reminder"}
+    {
+      "name": "victoria-tl3"
+    },
+    {
+      "name": "reminder"
+    }
   ],
   "pinData": {}
 }

@@ -12,7 +12,10 @@
       "name": "Webhook Feature Request",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 340],
+      "position": [
+        200,
+        340
+      ],
       "notesInFlow": true,
       "notes": "POST http://localhost:5678/webhook/feature-request\nBody: { title, description, priority, requester }"
     },
@@ -24,7 +27,10 @@
       "name": "Format Row",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 340]
+      "position": [
+        440,
+        340
+      ]
     },
     {
       "parameters": {
@@ -48,7 +54,10 @@
       "name": "Append to Features Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [680, 340],
+      "position": [
+        680,
+        340
+      ],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
@@ -64,20 +73,50 @@
       "name": "Respond OK",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [920, 340]
+      "position": [
+        920,
+        340
+      ]
     }
   ],
   "connections": {
     "Webhook Feature Request": {
-      "main": [[{ "node": "Format Row", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Format Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Format Row": {
-      "main": [[{ "node": "Append to Features Sheet", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Append to Features Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Append to Features Sheet": {
-      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
+  },
   "pinData": {}
 }

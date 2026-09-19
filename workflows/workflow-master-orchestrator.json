@@ -16,13 +16,67 @@
       "name": "Cron - Every 6 Hours",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 340],
+      "position": [
+        200,
+        340
+      ],
       "notesInFlow": true,
       "notes": "Runs every 6 hours to check system health"
     },
     {
       "parameters": {
-        "url": "=http://localhost:5678/api/v1/executions?limit=50&status=error,crashed",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "list",
+          "cachedResultName": "Config"
+        },
+        "options": {
+          "range": "A:D"
+        }
+      },
+      "id": "m1000001-0001-4000-8000-000000000011",
+      "name": "Read Config Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        340
+      ],
+      "executeOnce": true,
+      "notesInFlow": true,
+      "notes": "Đọc tab Config của Google Sheet. Thay cho $vars (n8n Community không có biến tùy chỉnh).",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nreturn [{ json: cfg }];\n"
+      },
+      "id": "m1000001-0001-4000-8000-000000000012",
+      "name": "Read Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Gộp các dòng Key/Value thành một object để các node sau gọi qua $('Read Config')."
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/api/v1/executions?limit=50&status=error",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
@@ -38,7 +92,10 @@
       "name": "HTTP - Get Failed Executions",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 240],
+      "position": [
+        920,
+        240
+      ],
       "credentials": {
         "httpHeaderAuth": {
           "id": "[YOUR_N8N_API_CREDENTIAL_ID]",
@@ -66,7 +123,10 @@
       "name": "HTTP - Get Active Workflows",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 460],
+      "position": [
+        920,
+        460
+      ],
       "credentials": {
         "httpHeaderAuth": {
           "id": "[YOUR_N8N_API_CREDENTIAL_ID]",
@@ -76,13 +136,16 @@
     },
     {
       "parameters": {
-        "jsCode": "// Combine execution and workflow data into a health report\nconst failedExecs = $('HTTP - Get Failed Executions').first().json;\nconst activeWorkflows = $('HTTP - Get Active Workflows').first().json;\n\nconst now = new Date();\nconst twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);\n\n// Parse failed executions\nlet recentFailures = [];\ntry {\n  const execData = failedExecs.data || failedExecs || [];\n  recentFailures = (Array.isArray(execData) ? execData : []).filter(exec => {\n    const finishedAt = new Date(exec.stoppedAt || exec.startedAt);\n    return finishedAt > twentyFourHoursAgo;\n  });\n} catch (e) {\n  // API might not be available\n}\n\n// Parse active workflows\nlet workflows = [];\ntry {\n  const wfData = activeWorkflows.data || activeWorkflows || [];\n  workflows = Array.isArray(wfData) ? wfData : [];\n} catch (e) {}\n\n// Expected workflows\nconst expectedWorkflows = [\n  'C - AI Content Drafting Agent',\n  'D - Auto-Publish (WordPress + Manual Fallback)',\n  'E - Thursday Menu Reminder & Friday Escalation',\n  'G - Compliance URL Monitor'\n];\n\nconst activeNames = workflows.map(w => w.name);\nconst missingWorkflows = expectedWorkflows.filter(name => !activeNames.includes(name));\n\nconst health = {\n  timestamp: now.toISOString(),\n  overall_status: (recentFailures.length === 0 && missingWorkflows.length === 0) ? 'OK' : 'WARNING',\n  recent_failures_24h: recentFailures.length,\n  failure_details: recentFailures.slice(0, 10).map(f => ({\n    workflow: f.workflowData?.name || f.workflowId || 'Unknown',\n    status: f.status,\n    started: f.startedAt,\n    error: f.data?.resultData?.error?.message || 'No error details'\n  })),\n  active_workflows: activeNames.length,\n  missing_workflows: missingWorkflows,\n  has_issues: recentFailures.length > 0 || missingWorkflows.length > 0\n};\n\nreturn [{ json: health }];"
+        "jsCode": "// Combine data from sequential execution\nconst failedNodeData = $('HTTP - Get Failed Executions').first()?.json || {};\nconst activeNodeData = $('HTTP - Get Active Workflows').first()?.json || {};\n\nconst failedExecutions = (failedNodeData.data || []).filter(e => e.status === \"error\" || e.status === \"crashed\");\nconst activeWorkflows = (activeNodeData.data || []).filter(w => w.active === true);\n\nconst issues = [];\nif (failedExecutions.length > 0) {\n  issues.push(`${failedExecutions.length} workflow execution error(s) found in past 6h`);\n}\n\nconst report = {\n  timestamp: new Date().toISOString(),\n  active_workflow_count: activeWorkflows.length,\n  failed_execution_count: failedExecutions.length,\n  has_issues: failedExecutions.length > 0,\n  failed_details: failedExecutions.map(e => ({\n    id: e.id,\n    workflowId: e.workflowId,\n    mode: e.mode,\n    startedAt: e.startedAt,\n    stoppedAt: e.stoppedAt\n  })),\n  summary: failedExecutions.length > 0\n    ? `SYSTEM WARNING: ${failedExecutions.length} executions failed in the last 6 hours.`\n    : \"SYSTEM HEALTHY: All active workflows running without errors.\"\n};\n\nreturn [{ json: report }];"
       },
       "id": "m1000001-0001-4000-8000-000000000004",
       "name": "Build Health Report",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [720, 340]
+      "position": [
+        1200,
+        340
+      ]
     },
     {
       "parameters": {
@@ -95,7 +158,7 @@
           "conditions": [
             {
               "id": "cond-has-issues",
-              "leftValue": "={{ $json.has_issues }}",
+              "leftValue": "={{ $json.has_issues === true || String($json.has_issues).toLowerCase() === true }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -112,7 +175,10 @@
       "name": "IF - Has Issues",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [960, 340]
+      "position": [
+        1440,
+        340
+      ]
     },
     {
       "parameters": {
@@ -126,7 +192,10 @@
       "name": "AI Agent - Diagnose Issues",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
-      "position": [1200, 240]
+      "position": [
+        1680,
+        240
+      ]
     },
     {
       "parameters": {
@@ -141,7 +210,10 @@
       "name": "Ollama Model - Diagnostics",
       "type": "@n8n/n8n-nodes-langchain.lmOllama",
       "typeVersion": 1,
-      "position": [1100, 440],
+      "position": [
+        1580,
+        440
+      ],
       "credentials": {
         "ollamaApi": {
           "id": "[YOUR_OLLAMA_CREDENTIAL_ID]",
@@ -151,21 +223,27 @@
     },
     {
       "parameters": {
-        "sendTo": "={{ $vars.ADMIN_EMAIL || 'admin@victoria.edu.vn' }}",
+        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') || 'admin@victoria.edu.vn' }}",
         "subject": "=[HỆ THỐNG] Cảnh báo Victoria TL3 - {{ $('Build Health Report').first().json.overall_status }}",
-        "emailType": "html",
-        "message": "=<h2>⚙️ Báo cáo sức khỏe hệ thống Victoria TL3</h2>\n<p><strong>Thời gian:</strong> {{ $('Build Health Report').first().json.timestamp }}</p>\n<p><strong>Trạng thái tổng thể:</strong> {{ $('Build Health Report').first().json.overall_status }}</p>\n<p><strong>Lỗi trong 24h:</strong> {{ $('Build Health Report').first().json.recent_failures_24h }}</p>\n<p><strong>Workflow đang thiếu:</strong> {{ $('Build Health Report').first().json.missing_workflows.join(', ') || 'Không có' }}</p>\n<hr>\n<h3>Phân tích AI:</h3>\n<div>{{ $json.output || $json.text || 'Không thể tạo phân tích' }}</div>\n<hr>\n<p><em>Email tự động từ Master Orchestrator.</em></p>",
-        "options": {}
+        "emailFormat": "html",
+        "html": "=<h2>⚙️ Báo cáo sức khỏe hệ thống Victoria TL3</h2>\n<p><strong>Thời gian:</strong> {{ $('Build Health Report').first().json.timestamp }}</p>\n<p><strong>Trạng thái tổng thể:</strong> {{ $('Build Health Report').first().json.overall_status }}</p>\n<p><strong>Lỗi trong 24h:</strong> {{ $('Build Health Report').first().json.recent_failures_24h }}</p>\n<p><strong>Workflow đang thiếu:</strong> {{ $('Build Health Report').first().json.missing_workflows.join(', ') || 'Không có' }}</p>\n<hr>\n<h3>Phân tích AI:</h3>\n<div>{{ $json.output || $json.text || 'Không thể tạo phân tích' }}</div>\n<hr>\n<p><em>Email tự động từ Master Orchestrator.</em></p>",
+        "options": {
+          "appendAttribution": false
+        }
       },
       "id": "m1000001-0001-4000-8000-000000000008",
-      "name": "Gmail - System Alert",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email - System Alert",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [1460, 240],
+      "position": [
+        1940,
+        240
+      ],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "[YOUR_GMAIL_CREDENTIAL_ID]",
-          "name": "Gmail OAuth2"
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
         }
       }
     },
@@ -192,11 +270,51 @@
             "Details": "=Failures: {{ $('Build Health Report').first().json.recent_failures_24h }} | Missing: {{ $('Build Health Report').first().json.missing_workflows.length }}"
           },
           "schema": [
-            {"id": "Timestamp", "displayName": "Timestamp", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false},
-            {"id": "Workflow", "displayName": "Workflow", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false},
-            {"id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false},
-            {"id": "Last Run", "displayName": "Last Run", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false},
-            {"id": "Details", "displayName": "Details", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false}
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Workflow",
+              "displayName": "Workflow",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Last Run",
+              "displayName": "Last Run",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Details",
+              "displayName": "Details",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
           ]
         },
         "options": {}
@@ -205,7 +323,10 @@
       "name": "Log to System Health Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1200, 540],
+      "position": [
+        1680,
+        540
+      ],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
@@ -219,7 +340,10 @@
       "name": "No Op - All Healthy",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1200, 700]
+      "position": [
+        1680,
+        700
+      ]
     }
   ],
   "connections": {
@@ -227,12 +351,7 @@
       "main": [
         [
           {
-            "node": "HTTP - Get Failed Executions",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "HTTP - Get Active Workflows",
+            "node": "Read Config Sheet",
             "type": "main",
             "index": 0
           }
@@ -243,7 +362,7 @@
       "main": [
         [
           {
-            "node": "Build Health Report",
+            "node": "HTTP - Get Active Workflows",
             "type": "main",
             "index": 0
           }
@@ -310,7 +429,29 @@
       "main": [
         [
           {
-            "node": "Gmail - System Alert",
+            "node": "Email - System Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config Sheet": {
+      "main": [
+        [
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Get Failed Executions",
             "type": "main",
             "index": 0
           }
@@ -322,7 +463,8 @@
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
   },
   "versionId": "master-orchestrator-v1",
   "meta": {
@@ -330,9 +472,15 @@
     "instanceId": ""
   },
   "tags": [
-    {"name": "victoria-tl3"},
-    {"name": "orchestrator"},
-    {"name": "monitoring"}
+    {
+      "name": "victoria-tl3"
+    },
+    {
+      "name": "orchestrator"
+    },
+    {
+      "name": "monitoring"
+    }
   ],
   "pinData": {}
 }

@@ -1,0 +1,266 @@
+{
+  "name": "H - Global Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "h1000001-0001-4000-8000-000000000001",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Runs whenever any workflow whose errorWorkflow points here fails. No failure stays silent."
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "list",
+          "cachedResultName": "Config"
+        },
+        "options": {
+          "range": "A:D"
+        }
+      },
+      "id": "h1000001-0001-4000-8000-000000000002",
+      "name": "Read Config Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        340
+      ],
+      "executeOnce": true,
+      "notesInFlow": true,
+      "notes": "Reads the Config tab of the Google Sheet. Replaces $vars, which n8n Community edition does not have.",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nreturn [{ json: cfg }];\n"
+      },
+      "id": "h1000001-0001-4000-8000-000000000003",
+      "name": "Read Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Folds the Key/Value rows into one object so later nodes can read it via $('Read Config')."
+    },
+    {
+      "parameters": {
+        "jsCode": "const err = $('Error Trigger').first().json;\nreturn [{\n  json: {\n    Timestamp: $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss'),\n    Workflow: err.workflow?.name || 'Unknown',\n    Status: 'ERROR',\n    'Last Run': $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss'),\n    Details: [\n      err.execution?.lastNodeExecuted ? 'Node: ' + err.execution.lastNodeExecuted : null,\n      err.execution?.error?.message || null,\n      err.execution?.url || null,\n    ].filter(Boolean).join(' | '),\n  },\n}];\n"
+      },
+      "id": "h1000001-0001-4000-8000-000000000004",
+      "name": "Build Failure Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Builds one row for the System Health tab."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "System Health",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json[\"Timestamp\"] }}",
+            "Workflow": "={{ $json[\"Workflow\"] }}",
+            "Status": "={{ $json[\"Status\"] }}",
+            "Last Run": "={{ $json[\"Last Run\"] }}",
+            "Details": "={{ $json[\"Details\"] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Workflow",
+              "displayName": "Workflow",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Last Run",
+              "displayName": "Last Run",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Details",
+              "displayName": "Details",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "h1000001-0001-4000-8000-000000000005",
+      "name": "Append System Health",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1160,
+        340
+      ],
+      "onError": "continueRegularOutput",
+      "notesInFlow": true,
+      "notes": "Writes to System Health so the failure is visible in the Sheet even if the email fails.",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') }}",
+        "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') }}",
+        "subject": "=[FAILURE] {{ $('Error Trigger').first().json.workflow?.name || 'Unknown workflow' }} - Victoria TL3",
+        "emailFormat": "html",
+        "html": "=<h2>❌ Workflow failed</h2>\n<p><strong>Workflow:</strong> {{ $('Error Trigger').first().json.workflow?.name || '?' }}</p>\n<p><strong>Failed node:</strong> {{ $('Error Trigger').first().json.execution?.lastNodeExecuted || '?' }}</p>\n<p><strong>Time:</strong> {{ $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm') }}</p>\n<p><strong>Error message:</strong></p>\n<pre>{{ $('Error Trigger').first().json.execution?.error?.message || 'No detail' }}</pre>\n<p><a href=\"{{ $('Error Trigger').first().json.execution?.url || '#' }}\">Open the execution in n8n</a></p>\n<hr>\n<p><em>Sent automatically by H - Global Error Handler. Nothing was published as a result of this failure.</em></p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "h1000001-0001-4000-8000-000000000006",
+      "name": "Email - Failure Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1400,
+        340
+      ],
+      "notesInFlow": true,
+      "notes": "Tells a person. This is the last step - if SMTP is down, the System Health row still exists.",
+      "credentials": {
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Config Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config Sheet": {
+      "main": [
+        [
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Failure Row": {
+      "main": [
+        [
+          {
+            "node": "Append System Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append System Health": {
+      "main": [
+        [
+          {
+            "node": "Email - Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
