@@ -22,7 +22,16 @@ TencentDB-Agent-Memory/
 # ---------------------------------------------------------------------------
 .agents/
 .opencode/
+.opencodereview/
 .claude/
+.kiro/
+.qodo/
+.serena/
+.augment/
+.zed/
+.amazonq/
+.crush/
+.goose/
 .codex/
 .cursor/
 .gemini/
@@ -51,6 +60,10 @@ GEMINI.md
 .cursorrules
 .windsurfrules
 .roomodes
+.clinerules
+.github/copilot-instructions.md
+QWEN.md
+CRUSH.md
 
 # Installed skill packages (re-installable from skills-lock.json)
 **/skills/*/references/
@@ -79,3 +92,15 @@ Thumbs.db
 
 # n8n backups produced by scripts/backup-n8n.sh
 backups/
+
+# ---------------------------------------------------------------------------
+# Business documents: proposals, pricing, reports (kept local, never public)
+# ---------------------------------------------------------------------------
+De-xuat-*.md
+Victoria-TL3-*.md
+Bao-cao-*.md
+victoria-group-apis-criteria.md
+*.docx
+*.pptx
+*.xlsx
+*.pdf
