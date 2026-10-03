@@ -15,7 +15,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_DIR="$REPO_ROOT/n8n-local"
+COMPOSE_DIR="$REPO_ROOT/infra"
 BACKUP_ROOT="${1:-$REPO_ROOT/backups}"
 KEEP_DAYS="${KEEP_DAYS:-30}"
 STAMP="$(date +%Y-%m-%d_%H%M)"

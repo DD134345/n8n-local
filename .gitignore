@@ -104,3 +104,8 @@ victoria-group-apis-criteria.md
 *.pptx
 *.xlsx
 *.pdf
+
+# ---------------------------------------------------------------------------
+# Markdown docs stay local - the public repo holds workflow and website source only
+# ---------------------------------------------------------------------------
+*.md
