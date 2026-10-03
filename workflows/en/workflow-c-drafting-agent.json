@@ -186,7 +186,8 @@
           "value": {
             "Website version": "={{ $json.ban_website }}",
             "Zalo version": "={{ $json.ban_zalo }}",
-            "Facebook version": "={{ $json.ban_facebook }}"
+            "Facebook version": "={{ $json.ban_facebook }}",
+            "row_number": "={{ $json.row_number }}"
           },
           "matchingColumns": [
             "row_number"

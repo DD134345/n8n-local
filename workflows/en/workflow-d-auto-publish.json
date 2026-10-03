@@ -271,9 +271,9 @@
       "parameters": {
         "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
         "toEmail": "={{ ($('Read Config')?.first()?.json?.POSTER_EMAIL || 'poster@victoria.edu.vn') || 'poster@victoria.edu.vn' }}",
-        "subject": "=[TO PUBLISH] {{ $json['Date'] }} - Menu, Victoria TL3",
+        "subject": "=[TO PUBLISH] {{ $('IF - Approved and Not Posted').item.json['Date'] }} - Menu, Victoria TL3",
         "emailFormat": "html",
-        "html": "=<h2>Content ready to publish on the website</h2>\n<p><strong>Date:</strong> {{ $json['Date'] }}</p>\n<p><strong>Approved by:</strong> {{ $json['Approved by'] }}</p>\n<p><strong>Approved at:</strong> {{ $json['Approved at'] }}</p>\n<hr>\n<h3>Website version (copy &amp; paste into the CMS):</h3>\n{{ $json['Website version'] }}\n<hr>\n<h3>Zalo version:</h3>\n<pre>{{ $json['Zalo version'] }}</pre>\n<hr>\n<h3>Facebook version:</h3>\n<pre>{{ $json['Facebook version'] }}</pre>\n<hr>\n<p><em>Automated email from the Victoria TL3 system. Please publish the content above to the website and tick \"Published\" in the spreadsheet.</em></p>",
+        "html": "=<h2>Content ready to publish on the website</h2>\n<p><strong>Date:</strong> {{ $('IF - Approved and Not Posted').item.json['Date'] }}</p>\n<p><strong>Approved by:</strong> {{ $('IF - Approved and Not Posted').item.json['Approved by'] }}</p>\n<p><strong>Approved at:</strong> {{ $('IF - Approved and Not Posted').item.json['Approved at'] }}</p>\n<hr>\n<h3>Website version (copy &amp; paste into the CMS):</h3>\n{{ $('IF - Approved and Not Posted').item.json['Website version'] }}\n<hr>\n<h3>Zalo version:</h3>\n<pre>{{ $('IF - Approved and Not Posted').item.json['Zalo version'] }}</pre>\n<hr>\n<h3>Facebook version:</h3>\n<pre>{{ $('IF - Approved and Not Posted').item.json['Facebook version'] }}</pre>\n<hr>\n<p><em>Automated email from the Victoria TL3 system. Please publish the content above to the website and tick \"Published\" in the spreadsheet.</em></p>",
         "options": {
           "appendAttribution": false
         }
@@ -338,9 +338,9 @@
       "parameters": {
         "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
         "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') || 'admin@victoria.edu.vn' }}",
-        "subject": "=[ERROR] Automatic publishing failed - {{ $json['Date'] }}",
+        "subject": "=[ERROR] Automatic publishing failed - {{ $('IF - Approved and Not Posted').item.json['Date'] }}",
         "emailFormat": "html",
-        "html": "=<h2>&#9888; Automatic publishing failed</h2>\n<p>The WordPress API returned an error. The content has been emailed to the person who posts manually.</p>\n<p><strong>Date:</strong> {{ $json['Date'] }}</p>\n<p><strong>Error detail:</strong> {{ $json.error?.message || 'Unknown error' }}</p>\n<p><em>Please check the WordPress API connection.</em></p>",
+        "html": "=<h2>&#9888; Automatic publishing failed</h2>\n<p>The WordPress API returned an error. The content has been emailed to the person who posts manually.</p>\n<p><strong>Date:</strong> {{ $('IF - Approved and Not Posted').item.json['Date'] }}</p>\n<p><strong>Error detail:</strong> {{ $json.error?.message || 'Unknown error' }}</p>\n<p><em>Please check the WordPress API connection.</em></p>",
         "options": {
           "appendAttribution": false
         }
@@ -379,7 +379,8 @@
           "value": {
             "Published": "={{ $json.da_dang }}",
             "Post URL": "={{ $json.post_url }}",
-            "Notes": "={{ $json.publish_method }} - {{ $now.toISO() }}"
+            "Notes": "={{ $json.publish_method }} - {{ $now.toISO() }}",
+            "row_number": "={{ $json.row_number }}"
           },
           "matchingColumns": [
             "row_number"
@@ -473,8 +474,8 @@
             "Content date": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Date\"] || '' }}",
             "Approved by": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Approved by\"] || '' }}",
             "Approved at": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Approved at\"] || '' }}",
-            "Method": "={{ $json.publish_method }}",
-            "Post URL": "={{ $json.post_url }}",
+            "Method": "={{ $json.publish_method || String($json['Notes'] || '').split(' - ')[0] }}",
+            "Post URL": "={{ $json.post_url || $json['Post URL'] || '' }}",
             "Result": "SUCCESS"
           },
           "matchingColumns": [],

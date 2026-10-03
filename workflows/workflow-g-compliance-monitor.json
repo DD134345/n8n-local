@@ -193,7 +193,8 @@
             "Trạng thái": "={{ $json.status }}",
             "HTTP Status": "={{ $json.http_status }}",
             "Lần kiểm tra cuối": "={{ $json.timestamp }}",
-            "Ghi chú": "={{ $json.note }}"
+            "Ghi chú": "={{ $json.note }}",
+            "URL kiểm tra": "={{ $json.url }}"
           },
           "matchingColumns": [
             "URL kiểm tra"

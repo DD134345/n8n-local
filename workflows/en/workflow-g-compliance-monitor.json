@@ -193,7 +193,8 @@
             "Status": "={{ $json.status }}",
             "HTTP Status": "={{ $json.http_status }}",
             "Last checked": "={{ $json.timestamp }}",
-            "Notes": "={{ $json.note }}"
+            "Notes": "={{ $json.note }}",
+            "Check URL": "={{ $json.url }}"
           },
           "matchingColumns": [
             "Check URL"

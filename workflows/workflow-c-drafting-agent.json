@@ -186,7 +186,8 @@
           "value": {
             "Bản website": "={{ $json.ban_website }}",
             "Bản Zalo": "={{ $json.ban_zalo }}",
-            "Bản Facebook": "={{ $json.ban_facebook }}"
+            "Bản Facebook": "={{ $json.ban_facebook }}",
+            "row_number": "={{ $json.row_number }}"
           },
           "matchingColumns": [
             "row_number"

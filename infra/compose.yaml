@@ -50,6 +50,9 @@ services:
       - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
       - N8N_SECURE_COOKIE=false
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      # Zalo staff gateway (workflow Z): token read in nodes as $env.ZALO_BOT_TOKEN
+      - ZALO_BOT_TOKEN=${ZALO_BOT_TOKEN:-}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:

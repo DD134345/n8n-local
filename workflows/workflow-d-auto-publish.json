@@ -271,9 +271,9 @@
       "parameters": {
         "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
         "toEmail": "={{ ($('Read Config')?.first()?.json?.POSTER_EMAIL || 'poster@victoria.edu.vn') || 'poster@victoria.edu.vn' }}",
-        "subject": "=[CẦN ĐĂNG] {{ $json['Ngày'] }} - Thực đơn Victoria TL3",
+        "subject": "=[CẦN ĐĂNG] {{ $('IF - Approved and Not Posted').item.json['Ngày'] }} - Thực đơn Victoria TL3",
         "emailFormat": "html",
-        "html": "=<h2>Nội dung cần đăng lên website</h2>\n<p><strong>Ngày:</strong> {{ $json['Ngày'] }}</p>\n<p><strong>Người duyệt:</strong> {{ $json['Người duyệt'] }}</p>\n<p><strong>Thời điểm duyệt:</strong> {{ $json['Thời điểm duyệt'] }}</p>\n<hr>\n<h3>Bản website (copy & paste vào CMS):</h3>\n{{ $json['Bản website'] }}\n<hr>\n<h3>Bản Zalo:</h3>\n<pre>{{ $json['Bản Zalo'] }}</pre>\n<hr>\n<h3>Bản Facebook:</h3>\n<pre>{{ $json['Bản Facebook'] }}</pre>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3. Vui lòng đăng nội dung trên lên website và đánh dấu \"Đã đăng\" trong bảng tính.</em></p>",
+        "html": "=<h2>Nội dung cần đăng lên website</h2>\n<p><strong>Ngày:</strong> {{ $('IF - Approved and Not Posted').item.json['Ngày'] }}</p>\n<p><strong>Người duyệt:</strong> {{ $('IF - Approved and Not Posted').item.json['Người duyệt'] }}</p>\n<p><strong>Thời điểm duyệt:</strong> {{ $('IF - Approved and Not Posted').item.json['Thời điểm duyệt'] }}</p>\n<hr>\n<h3>Bản website (copy & paste vào CMS):</h3>\n{{ $('IF - Approved and Not Posted').item.json['Bản website'] }}\n<hr>\n<h3>Bản Zalo:</h3>\n<pre>{{ $('IF - Approved and Not Posted').item.json['Bản Zalo'] }}</pre>\n<hr>\n<h3>Bản Facebook:</h3>\n<pre>{{ $('IF - Approved and Not Posted').item.json['Bản Facebook'] }}</pre>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3. Vui lòng đăng nội dung trên lên website và đánh dấu \"Đã đăng\" trong bảng tính.</em></p>",
         "options": {
           "appendAttribution": false
         }
@@ -338,9 +338,9 @@
       "parameters": {
         "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
         "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') || 'admin@victoria.edu.vn' }}",
-        "subject": "=[LỖI] Không thể đăng bài tự động - {{ $json['Ngày'] }}",
+        "subject": "=[LỖI] Không thể đăng bài tự động - {{ $('IF - Approved and Not Posted').item.json['Ngày'] }}",
         "emailFormat": "html",
-        "html": "=<h2>⚠️ Lỗi đăng bài tự động</h2>\n<p>WordPress API trả về lỗi. Nội dung đã được gửi qua email cho người đăng bài.</p>\n<p><strong>Ngày:</strong> {{ $json['Ngày'] }}</p>\n<p><strong>Chi tiết lỗi:</strong> {{ $json.error?.message || 'Unknown error' }}</p>\n<p><em>Vui lòng kiểm tra kết nối WordPress API.</em></p>",
+        "html": "=<h2>⚠️ Lỗi đăng bài tự động</h2>\n<p>WordPress API trả về lỗi. Nội dung đã được gửi qua email cho người đăng bài.</p>\n<p><strong>Ngày:</strong> {{ $('IF - Approved and Not Posted').item.json['Ngày'] }}</p>\n<p><strong>Chi tiết lỗi:</strong> {{ $json.error?.message || 'Unknown error' }}</p>\n<p><em>Vui lòng kiểm tra kết nối WordPress API.</em></p>",
         "options": {
           "appendAttribution": false
         }
@@ -379,7 +379,8 @@
           "value": {
             "Đã đăng": "={{ $json.da_dang }}",
             "URL bài đăng": "={{ $json.post_url }}",
-            "Ghi chú": "={{ $json.publish_method }} - {{ $now.toISO() }}"
+            "Ghi chú": "={{ $json.publish_method }} - {{ $now.toISO() }}",
+            "row_number": "={{ $json.row_number }}"
           },
           "matchingColumns": [
             "row_number"
@@ -473,8 +474,8 @@
             "Content date": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Ng\\u00e0y\"] || '' }}",
             "Approved by": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Ng\\u01b0\\u1eddi duy\\u1ec7t\"] || '' }}",
             "Approved at": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Th\\u1eddi \\u0111i\\u1ec3m duy\\u1ec7t\"] || '' }}",
-            "Method": "={{ $json.publish_method }}",
-            "Post URL": "={{ $json.post_url }}",
+            "Method": "={{ $json.publish_method || String($json['Ghi chú'] || '').split(' - ')[0] }}",
+            "Post URL": "={{ $json.post_url || $json['URL bài đăng'] || '' }}",
             "Result": "SUCCESS"
           },
           "matchingColumns": [],
