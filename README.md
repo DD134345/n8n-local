@@ -1,4 +1,4 @@
-# n8n-local
+# n8n-school-ops
 
 Self-hosted n8n automation for a school's website operations, plus the school website it manages.
 Staff enter content once in a Google Sheet. n8n drafts it with a local LLM, waits for a human
@@ -82,8 +82,8 @@ Running cost is close to zero: local models plus free tiers.
 ## Quick start
 
 ```bash
-git clone --recurse-submodules https://github.com/DD134345/n8n-local.git
-cd n8n-local/infra
+git clone --recurse-submodules https://github.com/DD134345/n8n-school-ops.git
+cd n8n-school-ops/infra
 cp .env.example .env        # fill in your own values; never commit .env
 docker compose up -d        # n8n on http://<VM_IP>:5678
 ```
