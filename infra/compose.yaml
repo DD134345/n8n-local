@@ -14,32 +14,27 @@ services:
       timeout: 5s
       retries: 5
 
-  ollama:
-    image: ollama/ollama:latest
-    restart: unless-stopped
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    environment:
-      OLLAMA_FLASH_ATTENTION: "1"
-      OLLAMA_KV_CACHE_TYPE: "q8_0"
-      OLLAMA_MAX_LOADED_MODELS: "1"
-      OLLAMA_KEEP_ALIVE: "10m"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-
   n8n:
-    image: n8nio/n8n:latest
+    build: .
+    # Check the Code-node external-module mechanism when upgrading this pinned version.
+    extra_hosts:
+      - "winhost:${WIN_HOST_IP}"
     restart: unless-stopped
     ports:
       - "5678:5678"
     environment:
+      - N8N_HOST=${VM_IP}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://${VM_IP}:5678/
+      - N8N_EDITOR_BASE_URL=http://${VM_IP}:5678/
+      - N8N_SECURE_COOKIE=false
+      - N8N_CONCURRENCY_PRODUCTION_LIMIT=3
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=336
+      - NODE_FUNCTION_ALLOW_EXTERNAL=turndown,turndown-plugin-gfm,js-yaml
+      # Workflow Z reads $env.ZALO_BOT_TOKEN; flip to true once it uses a credential instead.
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
       - TZ=Asia/Ho_Chi_Minh
       - DB_TYPE=postgresdb
@@ -48,18 +43,16 @@ services:
       - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
       - DB_POSTGRESDB_USER=${POSTGRES_USER}
       - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
-      - N8N_SECURE_COOKIE=false
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
-      # Zalo staff gateway (workflow Z): token read in nodes as $env.ZALO_BOT_TOKEN
       - ZALO_BOT_TOKEN=${ZALO_BOT_TOKEN:-}
-      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - NODE_FUNCTION_ALLOW_BUILTIN=crypto
     volumes:
       - n8n_data:/home/node/.n8n
+      - ${WORKFLOWS_IMPORT_DIR:-./import}:/import:ro
     depends_on:
       postgres:
         condition: service_healthy
 
 volumes:
   postgres_data:
-  ollama_data:
   n8n_data:

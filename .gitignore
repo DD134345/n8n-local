@@ -109,3 +109,4 @@ victoria-group-apis-criteria.md
 # Markdown docs stay local - the public repo holds workflow and website source only
 # ---------------------------------------------------------------------------
 *.md
+!/README.md

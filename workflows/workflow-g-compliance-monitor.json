@@ -487,7 +487,7 @@
     {
       "parameters": {
         "fromEmail": "={{ ($('Read Config Weekly')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
-        "toEmail": "={{ ($('Read Config Weekly')?.first()?.json?.BGD_EMAIL || 'bgd@victoria.edu.vn') || 'bgd@victoria.edu.vn' }}",
+        "toEmail": "={{ ($('Read Config Weekly')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') || 'admin@victoria.edu.vn' }}",
         "subject": "=[BÁO CÁO TUẦN] Tuân thủ website Victoria - Tuần {{ new Date().toLocaleDateString('vi-VN') }}",
         "emailFormat": "html",
         "html": "={{ $json.output || $json.text || 'Không thể tạo báo cáo' }}",

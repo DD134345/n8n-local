@@ -1,0 +1,697 @@
+{
+  "name": "P - Publisher-Astro (Thực đơn)",
+  "nodes": [
+    {
+      "id": "p-01",
+      "name": "Lịch - mỗi 2 phút",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "p-02",
+      "name": "Chạy thử (thủ công)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "p-03",
+      "name": "Đọc Config Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_NEWTON_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "name",
+          "cachedResultName": "Config"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets (Newton)"
+        }
+      }
+    },
+    {
+      "id": "p-04",
+      "name": "Đọc Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// Same key/value parsing as TL3 \"Read Config\" (accepts Khoá/Khóa/Key and Giá trị/Value).\nconst cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Khoá'] ?? item.json['Khóa'] ?? item.json['Key'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Giá trị'] ?? item.json['Value'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\nconst required = ['SITE_URL', 'GITHUB_REPO', 'GITHUB_BRANCH', 'APPROVER_EMAILS', 'ADMIN_EMAIL'];\nconst missing = required.filter((k) => !cfg[k] || String(cfg[k]).trim() === '');\nif (missing.length) throw new Error('Config thiếu khoá: ' + missing.join(', '));\nreturn [{ json: cfg }];\n"
+      }
+    },
+    {
+      "id": "p-05",
+      "name": "Đọc Thực đơn",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        660,
+        100
+      ],
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_NEWTON_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Thực đơn",
+          "mode": "name",
+          "cachedResultName": "Thực đơn"
+        },
+        "options": {
+          "outputFormatting": {
+            "values": {
+              "general": "FORMATTED_VALUE",
+              "date": "FORMATTED_STRING"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets (Newton)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": false
+    },
+    {
+      "id": "p-06",
+      "name": "Chọn tuần cần đăng",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// P (Thực đơn): pick at most ONE fully approved week and render its JSON file.\n// Deterministic only: no model. Hash must match scripts/newton/approval-stamp.gs exactly.\nconst crypto = require('crypto');\nconst cfg = $('Đọc Config').first().json;\nconst EXCLUDE = ['Trạng thái','Duyệt','Người duyệt','Thời điểm duyệt','Mã băm duyệt','Đã đăng','URL','Commit SHA','Đã xác minh lúc','Ghi chú','QA điểm','QA ghi chú','Mô hình','Phiên bản prompt'];\nconst STOP = ['Lỗi ✘', 'Bị chặn: PII'];\nconst s = (v) => String(v ?? '').trim();\nconst isTrue = (v) => v === true || s(v).toLowerCase() === 'true';\nconst allow = s(cfg.APPROVER_EMAILS).split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);\nconst EMAIL = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nconst AT = /^\\d{2}\\/\\d{2}\\/\\d{4} \\d{2}:\\d{2}$/;\n\nfunction parseVn(t) {\n  const m = /^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/.exec(s(t));\n  if (!m) return null;\n  const d = new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));\n  return d.getUTCDate() === +m[1] && d.getUTCMonth() === +m[2] - 1 ? d : null;\n}\nconst fmt = (d) => `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;\nfunction isoWeek(d) {\n  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));\n  const day = t.getUTCDay() || 7;\n  t.setUTCDate(t.getUTCDate() + 4 - day);\n  const y = t.getUTCFullYear();\n  const w = Math.ceil(((t - Date.UTC(y, 0, 1)) / 86400000 + 1) / 7);\n  return { y, w };\n}\nfunction rowHash(r) {\n  const pairs = [];\n  for (const [k, v] of Object.entries(r)) {\n    const name = s(k), val = s(v);\n    if (!name || name === 'row_number' || EXCLUDE.includes(name) || val === '') continue;\n    pairs.push(name + '=' + val);\n  }\n  pairs.sort();\n  return crypto.createHash('sha256').update(pairs.join('␟'), 'utf8').digest('hex');\n}\n// SW-04 deterministic patterns (NEWTON-BUILD-INSTRUCTIONS 8.6.1). Only hit TYPES are reported.\nconst PII = [\n  ['phone', /(?:\\+?84|0)(?:[235789])\\d{8}\\b/],\n  ['phone', /\\b0\\d{2,3}[ .-]?\\d{3,4}[ .-]?\\d{3,4}\\b/],\n  ['cccd', /\\b\\d{9}\\b|\\b\\d{12}\\b/],\n  ['child-name', /(?:^|[^\\p{L}])(?:bé|con|cháu|học sinh)\\s+\\p{Lu}\\p{Ll}+(?:\\s+\\p{Lu}\\p{Ll}+){0,2}/u],\n];\nconst MEALS = ['Bữa sáng', 'Bữa trưa', 'Bữa chiều', 'Bữa phụ'];\nconst toAt = (t) => { const m = /^(\\d{2})\\/(\\d{2})\\/(\\d{4}) (\\d{2}):(\\d{2})/.exec(s(t)); return m ? `${m[1]}/${m[2]}/${m[3]} ${m[4]}:${m[5]}` : ''; };\nconst atKey = (t) => { const m = /^(\\d{2})\\/(\\d{2})\\/(\\d{4}) (\\d{2}):(\\d{2})/.exec(s(t)); return m ? `${m[3]}${m[2]}${m[1]}${m[4]}${m[5]}` : ''; };\n\nconst rows = $input.all().map((i) => i.json).filter((r) => r.row_number !== undefined);\nconst weeks = new Map();\nfor (const r of rows) {\n  const k = s(r['Tuần bắt đầu']);\n  if (!k) continue;\n  if (!weeks.has(k)) weeks.set(k, []);\n  weeks.get(k).push(r);\n}\n\nconst out = [];\nconst status = (r, st, note, audit = {}) => {\n  if (s(r['Trạng thái']) === st && s(r['Ghi chú']) === note) return; // nothing changes: no write\n  out.push({ json: { kind: 'status', row_number: r.row_number,\n    values: { 'Trạng thái': st, 'Ghi chú': note },\n    audit: { action: 'kiểm tra', result: st, commit_sha: '', approver: s(r['Người duyệt']), note, ...audit } } });\n};\n\nconst publishable = [];\nfor (const [wk, list] of weeks) {\n  const candidate = list.some((r) => isTrue(r['Duyệt']) && !isTrue(r['Đã đăng']) && !STOP.includes(s(r['Trạng thái'])));\n  if (!candidate) continue;\n  const start = parseVn(wk);\n  if (!start || start.getUTCDay() !== 1) {\n    list.forEach((r) => status(r, 'Thiếu thông tin', 'Tuần bắt đầu phải là ngày thứ 2, dạng DD/MM/YYYY'));\n    continue;\n  }\n  const seen = new Set();\n  let ok = true;\n  const days = [];\n  for (const r of list) {\n    const d = parseVn(r['Ngày']);\n    const off = d ? Math.round((d - start) / 86400000) : -1;\n    if (!d || off < 0 || off > 5 || seen.has(off)) { status(r, 'Thiếu thông tin', 'Ngày không thuộc tuần (thứ 2–7) hoặc bị trùng'); ok = false; continue; }\n    seen.add(off);\n    const missing = MEALS.slice(0, 3).filter((m) => !s(r[m]));\n    if (missing.length) { status(r, 'Thiếu thông tin', 'Thiếu: ' + missing.join(', ')); ok = false; continue; }\n    const hits = [...new Set(PII.filter(([, re]) => MEALS.some((m) => re.test(s(r[m])))).map(([t]) => t))];\n    if (hits.length) { status(r, 'Bị chặn: PII', 'Nghi có dữ liệu cá nhân: ' + hits.join(', ') + '. Sửa nội dung rồi duyệt lại'); ok = false; continue; }\n    if (!isTrue(r['Duyệt'])) { status(r, 'Chờ duyệt', 'Chưa duyệt'); ok = false; continue; }\n    const by = s(r['Người duyệt']).toLowerCase();\n    if (!by || !allow.includes(by) || !s(r['Mã băm duyệt'])) { status(r, 'Chờ duyệt', 'Người duyệt không thuộc APPROVER_EMAILS hoặc thiếu mã băm'); ok = false; continue; }\n    if (rowHash(r) !== s(r['Mã băm duyệt'])) { status(r, 'Đã sửa sau duyệt', 'Nội dung đã sửa sau khi duyệt, cần duyệt lại'); ok = false; continue; }\n    days.push({ off, r });\n  }\n  if (!ok) continue;\n  const weekdays = [0, 1, 2, 3, 4].every((o) => seen.has(o));\n  if (!weekdays) {\n    list.forEach((r) => status(r, 'Chờ duyệt', 'Tuần chưa đủ 5 ngày (thứ 2–6) đã duyệt'));\n    continue;\n  }\n  publishable.push({ wk, start, days, list });\n}\n\npublishable.sort((a, b) => a.start - b.start);\nconst pick = publishable[0]; // one week (one commit) per run\nif (pick) {\n  const ordered = pick.days.sort((a, b) => a.off - b.off).slice(0, 6);\n  const days = ordered.map(({ r }) => {\n    const d = { date: s(r['Ngày']), breakfast: s(r['Bữa sáng']), lunch: s(r['Bữa trưa']), afternoon: s(r['Bữa chiều']) };\n    if (s(r['Bữa phụ'])) d.snack = s(r['Bữa phụ']);\n    return d;\n  });\n  const latest = [...ordered].sort((a, b) => atKey(b.r['Thời điểm duyệt']).localeCompare(atKey(a.r['Thời điểm duyệt'])))[0].r;\n  const approver = s(latest['Người duyệt']).toLowerCase();\n  if (!EMAIL.test(approver)) throw new Error('Email người duyệt không hợp lệ ở dòng ' + latest.row_number);\n  const week_start = fmt(pick.start);\n  const file = { week_start, days, approved: true, approved_by: approver };\n  const at = toAt(latest['Thời điểm duyệt']);\n  if (AT.test(at)) file.approved_at = at;\n  const rowNums = ordered.map(({ r }) => Number(r.row_number)).sort((a, b) => a - b);\n  file.sheet_row = rowNums[0];\n  file.content_hash = crypto.createHash('sha256').update(JSON.stringify({ week_start, days }), 'utf8').digest('hex');\n  file.source = 'n8n';\n  const { y, w } = isoWeek(pick.start);\n  const slug = `${y}-W${String(w).padStart(2, '0')}`;\n  const text = JSON.stringify(file, null, 2) + '\\n';\n  out.push({ json: {\n    kind: 'publish', slug, path: `src/data/menus/${slug}.json`,\n    contentBase64: Buffer.from(text, 'utf8').toString('base64'), contentHash: file.content_hash,\n    rows: rowNums, approver,\n    repo: s(cfg.GITHUB_REPO), branch: s(cfg.GITHUB_BRANCH),\n    pageUrl: s(cfg.SITE_URL).replace(/\\/+$/, '') + '/giao-duc-tuyen-sinh/thuc-don/',\n    commitMessage: `content(thuc-don): ${slug} [sheet:Thực đơn#${rowNums[0]}-${rowNums[rowNums.length - 1]}] approved-by:${approver}`,\n  } });\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "p-07",
+      "name": "Theo loại",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1100,
+        100
+      ],
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 2,
+        "output": "={{ $json.kind === 'publish' ? 0 : 1 }}"
+      }
+    },
+    {
+      "id": "p-08",
+      "name": "GitHub - Đọc file hiện có",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $json.repo }}/contents/{{ $json.path }}?ref={{ encodeURIComponent($json.branch) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub PAT (website repo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "p-09",
+      "name": "So sánh với repo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Compare the rendered file with what is already on GitHub (idempotency).\nconst pub = $('Chọn tuần cần đăng').all().map((i) => i.json).find((j) => j.kind === 'publish');\nconst res = $input.first().json;\nconst code = Number(res.statusCode);\nconst rowsStatus = (st, values, note, extra = {}) => pub.rows.map((rn) => ({ json: {\n  kind: 'status', row_number: rn, values: { 'Trạng thái': st, 'Ghi chú': note, ...values },\n  audit: { action: 'đăng thực đơn ' + pub.slug, result: st, commit_sha: extra.sha || '', approver: pub.approver, note } } }));\n\nif (code === 404) return [{ json: { ...pub, kind: 'commit', sha: null } }];\nif (code === 200) {\n  const body = typeof res.body === 'string' ? JSON.parse(res.body) : res.body;\n  let existing = null;\n  try { existing = JSON.parse(Buffer.from(String(body.content || ''), 'base64').toString('utf8')); } catch (e) { existing = null; }\n  if (existing && existing.content_hash === pub.contentHash && existing.approved === true) {\n    return rowsStatus('Đã đăng ✔', { 'Đã đăng': true, 'URL': pub.pageUrl }, 'Đã có trên repo, không đổi');\n  }\n  return [{ json: { ...pub, kind: 'commit', sha: body.sha } }];\n}\nconst msg = String((res.body && res.body.message) || '').replace(/(gh[p]_|github[_]pat_)\\S+/g, '***').slice(0, 150);\nreturn rowsStatus('Lỗi ✘', {}, `GitHub lỗi ${code || '?'} khi đọc file: ${msg}`);\n"
+      }
+    },
+    {
+      "id": "p-10",
+      "name": "Cần commit?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 2,
+        "output": "={{ $json.kind === 'commit' ? 0 : 1 }}"
+      }
+    },
+    {
+      "id": "p-11",
+      "name": "GitHub - Commit file",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        -100
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.github.com/repos/{{ $json.repo }}/contents/{{ $json.path }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ message: $json.commitMessage, content: $json.contentBase64, branch: $json.branch }, $json.sha ? { sha: $json.sha } : {})) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub PAT (website repo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "p-12",
+      "name": "Kết quả - thành công",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        -200
+      ],
+      "parameters": {
+        "jsCode": "// PUT succeeded: mark every row of the week as published (deploy not verified yet: V is not built).\nconst pub = $('So sánh với repo').all().map((i) => i.json).find((j) => j.kind === 'commit');\nconst res = $input.first().json;\nconst sha = String((res.commit && res.commit.sha) || '');\nconst note = 'Đã commit, chưa xác minh deploy (V chưa có)';\nreturn pub.rows.map((rn) => ({ json: {\n  kind: 'status', row_number: rn,\n  values: { 'Trạng thái': 'Đã đăng ✔', 'Đã đăng': true, 'URL': pub.pageUrl, 'Commit SHA': sha, 'Ghi chú': note },\n  audit: { action: 'đăng thực đơn ' + pub.slug, result: 'Đã đăng ✔', commit_sha: sha, approver: pub.approver, note } } }));\n"
+      }
+    },
+    {
+      "id": "p-13",
+      "name": "Kết quả - lỗi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// PUT failed after retries: rows wait for a human (status Lỗi ✘ is not retried automatically).\nconst pub = $('So sánh với repo').all().map((i) => i.json).find((j) => j.kind === 'commit');\nconst e = $input.first().json || {};\nconst raw = (e.error && (e.error.message || e.error.description)) || e.message || JSON.stringify(e.error || e).slice(0, 200);\nconst msg = String(raw).replace(/(gh[p]_|github[_]pat_)\\S+/g, '***').slice(0, 150);\nconst note = 'GitHub lỗi khi commit: ' + msg + '. Xoá trạng thái để thử lại';\nreturn pub.rows.map((rn) => ({ json: {\n  kind: 'status', row_number: rn, values: { 'Trạng thái': 'Lỗi ✘', 'Ghi chú': note },\n  audit: { action: 'đăng thực đơn ' + pub.slug, result: 'Lỗi ✘', commit_sha: '', approver: pub.approver, note } } }));\n"
+      }
+    },
+    {
+      "id": "p-14",
+      "name": "Gom trạng thái",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "p-15",
+      "name": "Chuẩn bị ghi Sheet",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Only Sheet columns + row_number, so auto-mapping writes nothing else.\nreturn $input.all().map((i) => ({ json: { row_number: i.json.row_number, ...i.json.values } }));\n"
+      }
+    },
+    {
+      "id": "p-16",
+      "name": "Ghi Thực đơn",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        0
+      ],
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_NEWTON_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Thực đơn",
+          "mode": "name",
+          "cachedResultName": "Thực đơn"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": []
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets (Newton)"
+        }
+      }
+    },
+    {
+      "id": "p-17",
+      "name": "Chuẩn bị Audit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).formatToParts(new Date()).map((x) => [x.type, x.value]));\nconst now = `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}:${p.second}`;\nreturn $input.all().map((i) => ({ json: {\n  'Thời điểm': now, 'Workflow': 'P', 'Tab': 'Thực đơn', 'Dòng': i.json.row_number,\n  'Hành động': i.json.audit?.action || '', 'Kết quả': i.json.audit?.result || '',\n  'Commit SHA': i.json.audit?.commit_sha || '', 'Người duyệt': i.json.audit?.approver || '',\n  'Mô hình': '', 'Ghi chú': i.json.audit?.note || '' } }));\n"
+      }
+    },
+    {
+      "id": "p-18",
+      "name": "Ghi Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        200
+      ],
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_NEWTON_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Audit Log",
+          "mode": "name",
+          "cachedResultName": "Audit Log"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets (Newton)"
+        }
+      }
+    },
+    {
+      "id": "p-19",
+      "name": "Cần cảnh báo?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        400
+      ],
+      "parameters": {
+        "jsCode": "// One email per run for rows that need a person. Row numbers + statuses only, never cell text.\nconst ALERT = ['Lỗi ✘', 'Bị chặn: PII', 'Đã sửa sau duyệt'];\nconst hits = $input.all().map((i) => i.json).filter((j) => ALERT.includes(j.values?.['Trạng thái']));\nif (!hits.length) return [];\nconst cfg = $('Đọc Config').first().json;\nconst lines = hits.map((h) => `<li>Thực đơn dòng ${h.row_number}: <b>${h.values['Trạng thái']}</b></li>`).join('');\nreturn [{ json: {\n  to: cfg.ADMIN_EMAIL || '', from: cfg.SMTP_FROM || cfg.ADMIN_EMAIL || '',\n  subject: `[Newton] P - ${hits.length} dòng thực đơn cần xử lý`,\n  html: `<p>Workflow P (đăng thực đơn) cần người xử lý:</p><ul>${lines}</ul><p>Mở Google Sheet \"Newton – Website\", tab Thực đơn, xem cột Ghi chú.</p>` } }];\n"
+      }
+    },
+    {
+      "id": "p-20",
+      "name": "Email - Báo admin",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2860,
+        400
+      ],
+      "parameters": {
+        "fromEmail": "={{ $json.from }}",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "",
+          "name": "SMTP (school)"
+        }
+      }
+    },
+    {
+      "id": "p-21",
+      "name": "Ghi chú",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -260
+      ],
+      "parameters": {
+        "width": 620,
+        "height": 220,
+        "content": "## P - Publisher-Astro (Thực đơn) - lát cắt đầu\nĐăng tuần thực đơn đã duyệt đủ thứ 2–6 thành `src/data/menus/<YYYY>-W<ww>.json` qua GitHub API; Cloudflare Pages build khi có commit.\n- Không có node AI. Chỉ đăng khi Duyệt + người duyệt trong APPROVER_EMAILS + mã băm khớp Apps Script v2.\n- Tối đa 1 tuần / lần chạy. `Lỗi ✘` và `Bị chặn: PII` chờ người xử lý.\n- Chưa có V (xác minh deploy).\nThay `[YOUR_NEWTON_SHEET_ID]` và `[YOUR_ERROR_WORKFLOW_ID]`, gắn 3 credential trước khi bật."
+      }
+    }
+  ],
+  "connections": {
+    "Lịch - mỗi 2 phút": {
+      "main": [
+        [
+          {
+            "node": "Đọc Config Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chạy thử (thủ công)": {
+      "main": [
+        [
+          {
+            "node": "Đọc Config Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc Config Sheet": {
+      "main": [
+        [
+          {
+            "node": "Đọc Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc Config": {
+      "main": [
+        [
+          {
+            "node": "Đọc Thực đơn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc Thực đơn": {
+      "main": [
+        [
+          {
+            "node": "Chọn tuần cần đăng",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chọn tuần cần đăng": {
+      "main": [
+        [
+          {
+            "node": "Theo loại",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Theo loại": {
+      "main": [
+        [
+          {
+            "node": "GitHub - Đọc file hiện có",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gom trạng thái",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub - Đọc file hiện có": {
+      "main": [
+        [
+          {
+            "node": "So sánh với repo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "So sánh với repo": {
+      "main": [
+        [
+          {
+            "node": "Cần commit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cần commit?": {
+      "main": [
+        [
+          {
+            "node": "GitHub - Commit file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gom trạng thái",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub - Commit file": {
+      "main": [
+        [
+          {
+            "node": "Kết quả - thành công",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Kết quả - lỗi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kết quả - thành công": {
+      "main": [
+        [
+          {
+            "node": "Gom trạng thái",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kết quả - lỗi": {
+      "main": [
+        [
+          {
+            "node": "Gom trạng thái",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gom trạng thái": {
+      "main": [
+        [
+          {
+            "node": "Chuẩn bị ghi Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Chuẩn bị Audit",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Cần cảnh báo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chuẩn bị ghi Sheet": {
+      "main": [
+        [
+          {
+            "node": "Ghi Thực đơn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chuẩn bị Audit": {
+      "main": [
+        [
+          {
+            "node": "Ghi Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cần cảnh báo?": {
+      "main": [
+        [
+          {
+            "node": "Email - Báo admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]",
+    "timezone": "Asia/Ho_Chi_Minh"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
