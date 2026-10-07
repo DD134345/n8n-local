@@ -18,16 +18,23 @@ services:
     build: .
     # Check the Code-node external-module mechanism when upgrading this pinned version.
     extra_hosts:
-      - "winhost:${WIN_HOST_IP}"
+      - "winhost:${WIN_HOST_IP:?set WIN_HOST_IP in infra/.env (ipconfig -> VMware Network Adapter VMnet8)}"
     restart: unless-stopped
     ports:
       - "5678:5678"
+    # Per-campus Zalo bot tokens (ZALO_BOT_TOKEN_<CAMPUS>=...). Kept in their own file so the
+    # rest of .env is not exposed to Code nodes. Optional.
+    env_file:
+      - path: ./zalo.env
+        required: false
     environment:
-      - N8N_HOST=${VM_IP}
+      - N8N_HOST=${VM_IP:?set VM_IP in infra/.env}
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
-      - WEBHOOK_URL=http://${VM_IP}:5678/
-      - N8N_EDITOR_BASE_URL=http://${VM_IP}:5678/
+      # Google OAuth only accepts plain-http redirects to localhost, so N8N_PUBLIC_URL is
+      # http://localhost:5678 (open n8n from the VM's browser, or forward host port 5678 to the VM).
+      - WEBHOOK_URL=${N8N_PUBLIC_URL:-http://localhost:5678}/
+      - N8N_EDITOR_BASE_URL=${N8N_PUBLIC_URL:-http://localhost:5678}/
       - N8N_SECURE_COOKIE=false
       - N8N_CONCURRENCY_PRODUCTION_LIMIT=3
       - EXECUTIONS_DATA_PRUNE=true

@@ -61,7 +61,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nreturn [{ json: cfg }];\n"
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nconst missing = [\"SMTP_FROM\", \"HIEU_TRUONG_EMAIL\", \"BAN_TRU_EMAIL\"].filter((k) => !String(cfg[k] ?? '').trim());\nif (missing.length) throw new Error('Config tab thiếu khoá: ' + missing.join(', '));\nreturn [{ json: cfg }];\n"
       },
       "id": "e1000001-0001-4000-8000-000000000015",
       "name": "Read Config",
@@ -168,8 +168,8 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
-        "toEmail": "={{ ($('Read Config')?.first()?.json?.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn') || 'bantru@victoria.edu.vn' }}",
+        "fromEmail": "={{ $('Read Config').first().json.SMTP_FROM }}",
+        "toEmail": "={{ $('Read Config').first().json.BAN_TRU_EMAIL }}",
         "subject": "=[REMINDER] This week's menu is incomplete - Victoria TL3",
         "emailFormat": "html",
         "html": "=<h2>&#128203; Menu entry reminder</h2>\n<p>Hello,</p>\n<p>The system has found that this week's menu is <strong>incomplete</strong>.</p>\n<p><strong>{{ $json.summary }}</strong></p>\n<h3>Missing days:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Please update the menu in the <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit\">data sheet</a> before the end of today.</p>\n<p><em>If it is not updated before 12:00 on Friday, the system will notify the Principal.</em></p>\n<hr>\n<p><em>Automated email from the Victoria TL3 system.</em></p>",
@@ -288,9 +288,9 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
-        "toEmail": "={{ ($('Read Config')?.first()?.json?.HIEU_TRUONG_EMAIL || 'hieutruong@victoria.edu.vn') || 'hieutruong@victoria.edu.vn' }}",
-        "ccEmail": "={{ ($('Read Config')?.first()?.json?.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn') || 'bantru@victoria.edu.vn' }}",
+        "fromEmail": "={{ $('Read Config').first().json.SMTP_FROM }}",
+        "toEmail": "={{ $('Read Config').first().json.HIEU_TRUONG_EMAIL }}",
+        "ccEmail": "={{ $('Read Config').first().json.BAN_TRU_EMAIL }}",
         "subject": "=[URGENT] This week's menu is still not published - Victoria TL3",
         "emailFormat": "html",
         "html": "=<h2>&#128680; Alert: the menu has not been updated</h2>\n<p>Dear Principal,</p>\n<p>Following Thursday's reminder, this week's menu is <strong>still incomplete</strong>.</p>\n<h3>Days still missing:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Under Circular 09/2024, the menu must be published on the school website. Please coordinate with the boarding-meals team to complete it.</p>\n<hr>\n<p><em>Automated email from the Victoria TL3 system. The boarding-meals team is copied.</em></p>",

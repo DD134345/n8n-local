@@ -6,7 +6,8 @@
         "httpMethod": "POST",
         "path": "feature-request",
         "responseMode": "lastNode",
-        "options": {}
+        "options": {},
+        "authentication": "headerAuth"
       },
       "id": "f1000001-0001-4000-8000-000000000001",
       "name": "Webhook Feature Request",
@@ -17,7 +18,13 @@
         340
       ],
       "notesInFlow": true,
-      "notes": "POST http://localhost:5678/webhook/feature-request\nBody: { title, description, priority, requester }"
+      "notes": "POST http://localhost:5678/webhook/feature-request\nBody: { title, description, priority, requester }",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "[YOUR_FEATURE_WEBHOOK_CREDENTIAL_ID]",
+          "name": "Feature Webhook Key"
+        }
+      }
     },
     {
       "parameters": {

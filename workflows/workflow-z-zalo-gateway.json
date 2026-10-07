@@ -1,5 +1,5 @@
 {
-  "name": "Z - Cổng Zalo cho nhân viên (bản thử)",
+  "name": "Z - Cổng Zalo cho nhân viên",
   "nodes": [
     {
       "id": "z-1",
@@ -131,7 +131,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "// Code node \"Định tuyến tin nhắn\": decide what to do with each Zalo message.\n// Inputs: $('Tách cập nhật').all() (messages), $('Đọc Config').all(), $('Đọc Nhân sự').all()\nconst noAcc = (s) => String(s ?? '').normalize('NFC').replace(/đ/g, 'd').replace(/Đ/g, 'D')\n  .normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');\nconst low = (s) => noAcc(s).toLowerCase();\n\nconst cfg = {};\nfor (const it of $('Đọc Config').all()) {\n  const k = String(it.json['Key'] ?? '').trim();\n  if (k) cfg[k] = String(it.json['Value'] ?? '').trim();\n}\nconst botName = cfg.ZALO_BOT_NAME || '';\n\nconst roleOf = (r) => {\n  const v = low(r);\n  if (v.includes('quan tri') || v.includes('admin')) return 'admin';\n  if (v.includes('duyet')) return 'approver';\n  if (v.includes('nhap')) return 'entry';\n  return '';\n};\nconst active = (v) => !['false', 'khong', 'no', '0', 'ngung'].includes(low(v).trim());\nconst staff = new Map();\nfor (const it of $('Đọc Nhân sự').all()) {\n  const j = it.json;\n  const id = String(j['Zalo ID'] ?? '').trim();\n  if (!id || !active(j['Đang dùng'])) continue;\n  staff.set(id, { name: String(j['Họ tên'] ?? '').trim() || id, role: roleOf(j['Vai trò']), campus: String(j['Cơ sở'] ?? '').trim() });\n}\n\nconst HELP = [\n  'Các lệnh dùng được:',\n  '• thực đơn 06/10: <nội dung thực đơn>  (gửi thực đơn một ngày)',\n  '• duyệt 12  (người duyệt: duyệt hàng 12)',\n  '• trả lại 12 <lý do>  (người duyệt: trả lại hàng 12)',\n  '• trợ giúp',\n].join('\\n');\nconst PHONE = /(?:\\+?84|0)(?:\\d[\\s.-]?){8,10}\\d/;\nconst now = new Date();\n\nfunction parseDate(d, m, y) {\n  d = Number(d); m = Number(m);\n  if (!(d >= 1 && d <= 31 && m >= 1 && m <= 12)) return null;\n  let year = y ? Number(y.length === 2 ? `20${y}` : y) : now.getFullYear();\n  if (!y) { // no year: pick the year that puts the date nearest to today\n    const cand = new Date(year, m - 1, d);\n    if ((now - cand) / 86400000 > 180) year += 1;\n  }\n  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${year}`;\n}\n\nconst out = [];\nfor (const it of $('Tách cập nhật').all()) {\n  const u = it.json;\n  const person = staff.get(String(u.from_id));\n  const base = { chat_id: u.chat_id, from_id: u.from_id, from_name: u.from_name, chat_type: u.chat_type };\n\n  // Hard rule 1: never reply to anyone who is not on the staff list (could be a parent).\n  if (!person) { out.push({ json: { ...base, action: 3, action_name: 'unknown', reply: '' } }); continue; }\n\n  let text = String(u.text ?? '').normalize('NFC');\n  if (botName) text = text.split(`@${botName}`).join(' ');\n  text = text.replace(/^\\s*@\\S+\\s*/, '').trim();\n  const norm = low(text);\n  const who = `${person.name} (Zalo ${u.from_id})`;\n  const reply = (r) => out.push({ json: { ...base, action: 2, action_name: 'reply', reply: r } });\n\n  if (u.event === 'message.image.received') { reply('Bản thử chưa nhận ảnh qua Zalo. Ảnh cho website xin gửi vào thư mục ảnh của trường.'); continue; }\n  if (!text) { reply(HELP); continue; }\n\n  let m;\n  if ((m = norm.match(/^thuc\\s*don\\s+(\\d{1,2})[/.-](\\d{1,2})(?:[/.-](\\d{2,4}))?\\s*[:\\-–]?\\s*([\\s\\S]*)$/))) {\n    if (!['entry', 'approver', 'admin'].includes(person.role)) { reply('Bạn chưa được phân quyền nhập thực đơn.'); continue; }\n    const date = parseDate(m[1], m[2], m[3]);\n    const content = text.slice(text.length - m[4].length).trim();\n    if (!date) { reply('Ngày không hợp lệ. Ví dụ: thực đơn 06/10: Sáng: cháo thịt…'); continue; }\n    if (content.length < 5) { reply('Thiếu nội dung thực đơn. Ví dụ: thực đơn 06/10: Sáng: cháo thịt…'); continue; }\n    if (PHONE.test(content)) { reply('Nội dung có số điện thoại nên đã được giữ lại, chưa ghi vào bảng tính. Vui lòng bỏ thông tin cá nhân rồi gửi lại.'); continue; }\n    out.push({ json: { ...base, action: 0, action_name: 'menu', date, content: content.slice(0, 4000), entered_by: `${person.name} (Zalo)`,\n      reply: `Đã nhận thực đơn ngày ${date}. Bản nháp sẽ được gửi cho người duyệt.` } });\n    continue;\n  }\n  if ((m = norm.match(/^duyet\\s+(?:hang\\s+)?(\\d{1,5})\\s*$/))) {\n    if (!['approver', 'admin'].includes(person.role)) { reply('Bạn chưa được phân quyền duyệt.'); continue; }\n    out.push({ json: { ...base, action: 1, action_name: 'approve', row_number: Number(m[1]), approver: who } });\n    continue;\n  }\n  if ((m = norm.match(/^tra\\s*lai\\s+(?:hang\\s+)?(\\d{1,5})\\s*([\\s\\S]*)$/))) {\n    if (!['approver', 'admin'].includes(person.role)) { reply('Bạn chưa được phân quyền duyệt.'); continue; }\n    const reason = text.slice(text.length - m[2].length).trim() || '(không ghi lý do)';\n    out.push({ json: { ...base, action: 1, action_name: 'reject', row_number: Number(m[1]), approver: who, reason } });\n    continue;\n  }\n  reply(norm.startsWith('tro giup') || norm === 'help' ? HELP : `Chưa hiểu yêu cầu.\\n\\n${HELP}`);\n}\nreturn out;\n"
+        "jsCode": "// ---- shared helpers (same block in every multi-tab Code node) ----\nconst noAcc = (s) => String(s ?? '').normalize('NFC').replace(/đ/g, 'd').replace(/Đ/g, 'D')\n  .normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');\nconst low = (s) => noAcc(s).toLowerCase().trim();\nconst truthy = (v) => v === true || ['TRUE', 'CO', 'X', '1'].includes(noAcc(v).trim().toUpperCase());\nconst TAB_CODES = { 'thuc don': 'td', 'thong bao': 'tb', 'lich/tkb': 'lich', 'lich': 'lich', 'tin hoat dong': 'tin' };\nconst TAB_EMOJI = { td: '🍽️', tb: '📢', lich: '📅', tin: '🌟' };\nconst tabCode = (tab) => TAB_CODES[low(tab)] || low(tab).replace(/[^a-z0-9]+/g, '');\nconst parseTabs = (v) => String(v || 'Thực đơn').split(',').map((t) => t.trim()).filter(Boolean);\nconst colLetter = (i) => { let s = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };\nconst qTab = (tab) => `'${String(tab).replace(/'/g, \"''\")}'`;\nconst batchQuery = (tabs) => tabs.map((t) => 'ranges=' + encodeURIComponent(`${qTab(t)}!A1:Z`)).join('&');\n// valueRange -> { cols: {header: letter}, rows: [{...header: value, row_number}] }\nconst readTab = (vr) => {\n  const values = (vr && vr.values) || [];\n  const header = (values[0] || []).map((h) => String(h ?? '').trim());\n  const cols = {};\n  header.forEach((h, i) => { if (h) cols[h] = colLetter(i); });\n  const rows = values.slice(1).map((r, i) => {\n    const o = { row_number: i + 2 };\n    header.forEach((h, j) => { if (h) o[h] = r[j] ?? ''; });\n    return o;\n  });\n  return { cols, rows };\n};\nconst cell = (tab, cols, header, row) => {\n  if (!cols[header]) throw new Error(`Tab \"${tab}\" thiếu cột \"${header}\"`);\n  return `${qTab(tab)}!${cols[header]}${row}`;\n};\nconst PHONE = /(?:\\+?84|0)(?:\\d[\\s.-]?){8,10}\\d/;\nconst nowVN = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');\nconst todayVN = () => new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' });\n// ---- end shared helpers ----\n\n// Decide what to do with each Zalo message.\n// Inputs: $('Tách cập nhật').all() (messages), $('Đọc Config').all(), $('Đọc Nhân sự').all()\nconst cfg = {};\nfor (const it of $('Đọc Config').all()) {\n  const k = String(it.json['Key'] ?? '').trim();\n  if (k) cfg[k] = String(it.json['Value'] ?? '').trim();\n}\nconst botName = cfg.ZALO_BOT_NAME || '';\nconst tabs = parseTabs(cfg.CONTENT_TABS);\nconst tabByCode = {};\nfor (const t of tabs) tabByCode[tabCode(t)] = t;\nconst LABEL = { td: 'thực đơn', tb: 'thông báo', lich: 'lịch', tin: 'tin hoạt động' };\n\nconst roleOf = (r) => {\n  const v = low(r);\n  if (v.includes('quan tri') || v.includes('admin')) return 'admin';\n  if (v.includes('duyet')) return 'approver';\n  if (v.includes('nhap')) return 'entry';\n  return '';\n};\nconst active = (v) => !['false', 'khong', 'no', '0', 'ngung'].includes(low(v));\nconst staff = new Map();\nfor (const it of $('Đọc Nhân sự').all()) {\n  const j = it.json;\n  const id = String(j['Zalo ID'] ?? '').trim();\n  if (!id || !active(j['Đang dùng'])) continue;\n  const kinds = String(j['Loại nội dung'] ?? '').split(',').map((s) => tabCode(s)).filter(Boolean);\n  staff.set(id, { name: String(j['Họ tên'] ?? '').trim() || id, role: roleOf(j['Vai trò']), campus: String(j['Cơ sở'] ?? '').trim(), kinds });\n}\nconst allowed = (p, code) => !p.kinds.length || p.kinds.includes(code);\n\nconst help = (p) => {\n  const mine = Object.keys(tabByCode).filter((c) => allowed(p, c));\n  const lines = ['Các lệnh dùng được:'];\n  const canEnter = ['entry', 'approver', 'admin'].includes(p.role);\n  const canApprove = ['approver', 'admin'].includes(p.role);\n  if (canEnter && mine.includes('td')) lines.push('• thực đơn 06/10: <nội dung>');\n  if (canEnter && mine.includes('lich')) lines.push('• lịch 06/10: <nội dung>');\n  if (canEnter && mine.includes('tb')) lines.push('• thông báo: <nội dung>');\n  if (canEnter && mine.includes('tin')) lines.push('• tin: <nội dung tin hoạt động>');\n  if (canApprove && mine.length) {\n    lines.push(`• duyệt <mã> <hàng>   (mã: ${mine.join(', ')}; \"duyệt 12\" = thực đơn)`);\n    lines.push('• trả lại <mã> <hàng> <lý do>');\n  }\n  lines.push('• trợ giúp');\n  return lines.join('\\n');\n};\nconst now = new Date();\nfunction parseDate(d, m, y) {\n  d = Number(d); m = Number(m);\n  if (!(d >= 1 && d <= 31 && m >= 1 && m <= 12)) return null;\n  let year = y ? Number(y.length === 2 ? `20${y}` : y) : now.getFullYear();\n  if (!y) { // no year: pick the year that puts the date nearest to today\n    const cand = new Date(year, m - 1, d);\n    if ((now - cand) / 86400000 > 180) year += 1;\n  }\n  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${year}`;\n}\n\nconst out = [];\nfor (const it of $('Tách cập nhật').all()) {\n  const u = it.json;\n  const person = staff.get(String(u.from_id));\n  const base = { chat_id: u.chat_id, from_id: u.from_id, from_name: u.from_name, chat_type: u.chat_type, batch_query: batchQuery(tabs) };\n\n  // Hard rule 1: never reply to anyone who is not on the staff list (could be a parent).\n  if (!person) { out.push({ json: { ...base, action: 3, action_name: 'unknown', reply: '' } }); continue; }\n\n  let text = String(u.text ?? '').normalize('NFC');\n  if (botName) text = text.split(`@${botName}`).join(' ');\n  text = text.replace(/^\\s*@\\S+\\s*/, '').trim();\n  const norm = noAcc(text).toLowerCase();\n  const who = `${person.name} (Zalo ${u.from_id})`;\n  const reply = (r) => out.push({ json: { ...base, action: 2, action_name: 'reply', reply: r } });\n  const tail = (g) => text.slice(text.length - g.length).trim();\n\n  if (u.event === 'message.image.received') { reply('Bot chưa nhận ảnh qua Zalo. Ảnh cho website xin gửi vào thư mục ảnh của trường.'); continue; }\n  if (!text) { reply(help(person)); continue; }\n\n  // ---- content commands ----\n  let m, code = null, date = null, content = null;\n  if ((m = norm.match(/^thuc\\s*don\\s+(\\d{1,2})[/.-](\\d{1,2})(?:[/.-](\\d{2,4}))?\\s*[:\\-–]?\\s*([\\s\\S]*)$/))) { code = 'td'; date = parseDate(m[1], m[2], m[3]); content = tail(m[4]); if (!date) { reply('Ngày không hợp lệ. Ví dụ: thực đơn 06/10: Sáng: cháo thịt…'); continue; } }\n  else if ((m = norm.match(/^lich\\s+(\\d{1,2})[/.-](\\d{1,2})(?:[/.-](\\d{2,4}))?\\s*[:\\-–]?\\s*([\\s\\S]*)$/))) { code = 'lich'; date = parseDate(m[1], m[2], m[3]); content = tail(m[4]); if (!date) { reply('Ngày không hợp lệ. Ví dụ: lịch 07/10: Họp phụ huynh 8h…'); continue; } }\n  else if ((m = norm.match(/^thong\\s*bao\\s*[:\\-–]?\\s*([\\s\\S]*)$/))) { code = 'tb'; date = todayVN(); content = tail(m[1]); }\n  else if ((m = norm.match(/^tin(?:\\s*hoat\\s*dong)?\\s*[:\\-–]\\s*([\\s\\S]*)$/))) { code = 'tin'; date = todayVN(); content = tail(m[1]); }\n\n  if (code) {\n    const tab = tabByCode[code];\n    if (!tab) { reply(`Mục ${LABEL[code]} chưa được bật cho cơ sở này.`); continue; }\n    if (!['entry', 'approver', 'admin'].includes(person.role) || !allowed(person, code)) { reply(`Bạn chưa được phân quyền nhập ${LABEL[code]}.`); continue; }\n    if (content.length < 5) { reply(`Thiếu nội dung ${LABEL[code]}.\\n\\n${help(person)}`); continue; }\n    if (PHONE.test(content)) { reply('Nội dung có số điện thoại nên đã được giữ lại, chưa ghi vào bảng tính. Vui lòng bỏ thông tin cá nhân rồi gửi lại.'); continue; }\n    out.push({ json: { ...base, action: 0, action_name: 'content', tab, code, range: `${qTab(tab)}!A:C`, date, content: content.slice(0, 4000),\n      entered_by: `${person.name} (Zalo)`, reply: `Đã nhận ${LABEL[code]} ngày ${date}. Bản nháp sẽ được gửi cho người duyệt.` } });\n    continue;\n  }\n\n  // ---- approve / return ----\n  const ap = norm.match(/^duyet\\s+(?:(td|tb|lich|tin)\\s+)?(?:hang\\s+)?(\\d{1,5})\\s*$/);\n  const rj = norm.match(/^tra\\s*lai\\s+(?:(td|tb|lich|tin)\\s+)?(?:hang\\s+)?(\\d{1,5})\\s*([\\s\\S]*)$/);\n  if (ap || rj) {\n    const mm = ap || rj;\n    const c = mm[1] || 'td';\n    const tab = tabByCode[c];\n    if (!tab) { reply(`Mã \"${c}\" chưa được bật cho cơ sở này.`); continue; }\n    if (!['approver', 'admin'].includes(person.role) || !allowed(person, c)) { reply(`Bạn chưa được phân quyền duyệt ${LABEL[c] || c}.`); continue; }\n    const row = Number(mm[2]);\n    if (row < 2) { reply('Số hàng không hợp lệ.'); continue; }\n    if (ap) out.push({ json: { ...base, action: 1, action_name: 'approve', tab, code: c, row_number: row, approver: who } });\n    else out.push({ json: { ...base, action: 1, action_name: 'reject', tab, code: c, row_number: row, approver: who, reason: tail(rj[3]) || '(không ghi lý do)' } });\n    continue;\n  }\n  reply(norm.startsWith('tro giup') || norm === 'help' ? help(person) : `Chưa hiểu yêu cầu.\\n\\n${help(person)}`);\n}\nreturn out;\n"
       }
     },
     {
@@ -150,77 +150,6 @@
       }
     },
     {
-      "id": "z-8",
-      "name": "Ghi Thực đơn",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        1560,
-        -220
-      ],
-      "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "[YOUR_GOOGLE_SHEET_ID]",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Thực đơn",
-          "mode": "name",
-          "cachedResultName": "Thực đơn"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Ngày": "={{ $json.date }}",
-            "Nội dung": "={{ $json.content }}",
-            "Người nhập": "={{ $json.entered_by }}"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "Ngày",
-              "displayName": "Ngày",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Nội dung",
-              "displayName": "Nội dung",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Người nhập",
-              "displayName": "Người nhập",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ]
-        },
-        "options": {
-          "cellFormat": "USER_ENTERED"
-        }
-      },
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
-          "name": "Google Sheets OAuth2"
-        }
-      }
-    },
-    {
       "id": "z-9",
       "name": "Trả lời sau khi ghi",
       "type": "n8n-nodes-base.code",
@@ -234,39 +163,6 @@
       }
     },
     {
-      "id": "z-10",
-      "name": "Đọc Thực đơn (duyệt)",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        1560,
-        0
-      ],
-      "parameters": {
-        "operation": "read",
-        "documentId": {
-          "__rl": true,
-          "value": "[YOUR_GOOGLE_SHEET_ID]",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Thực đơn",
-          "mode": "name",
-          "cachedResultName": "Thực đơn"
-        },
-        "options": {}
-      },
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
-          "name": "Google Sheets OAuth2"
-        }
-      },
-      "executeOnce": true,
-      "alwaysOutputData": true
-    },
-    {
       "id": "z-11",
       "name": "Kiểm tra hàng",
       "type": "n8n-nodes-base.code",
@@ -276,7 +172,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "const truthy = (v) => v === true || String(v).trim().toUpperCase() === 'TRUE';\nconst rows = new Map($input.all().map((r) => [Number(r.json.row_number), r.json]));\nconst out = [];\nfor (const it of $('Theo hành động').all(1)) {\n  const a = it.json;\n  const r = rows.get(Number(a.row_number));\n  let ok = false, reply;\n  if (!r || !String(r['Ngày'] ?? '').trim()) reply = `Không có hàng ${a.row_number} trong bảng Thực đơn.`;\n  else if (truthy(r['Đã đăng'])) reply = `Hàng ${a.row_number} (ngày ${r['Ngày']}) đã đăng rồi.`;\n  else if (a.action_name === 'approve' && truthy(r['Duyệt'])) reply = `Hàng ${a.row_number} đã được duyệt trước đó.`;\n  else if (a.action_name === 'approve' && !String(r['Bản website'] ?? '').trim()) reply = `Hàng ${a.row_number} chưa có bản nháp nên chưa duyệt được.`;\n  else {\n    ok = true;\n    reply = a.action_name === 'approve'\n      ? `Đã duyệt hàng ${a.row_number} (thực đơn ngày ${r['Ngày']}). Hệ thống sẽ đăng trong ít phút.`\n      : `Đã trả lại hàng ${a.row_number}. Lý do: ${a.reason}. Người nhập sửa trên bảng tính hoặc gửi lại.`;\n  }\n  const note = a.action_name === 'reject' ? [String(r?.['Ghi chú'] ?? '').trim(), `Trả lại bởi ${a.approver}: ${a.reason}`].filter(Boolean).join(' | ') : '';\n  out.push({ json: { ...a, ok, reply, note, route: ok ? (a.action_name === 'approve' ? 0 : 1) : 2 } });\n}\nreturn out;"
+        "jsCode": "// ---- shared helpers (same block in every multi-tab Code node) ----\nconst noAcc = (s) => String(s ?? '').normalize('NFC').replace(/đ/g, 'd').replace(/Đ/g, 'D')\n  .normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');\nconst low = (s) => noAcc(s).toLowerCase().trim();\nconst truthy = (v) => v === true || ['TRUE', 'CO', 'X', '1'].includes(noAcc(v).trim().toUpperCase());\nconst TAB_CODES = { 'thuc don': 'td', 'thong bao': 'tb', 'lich/tkb': 'lich', 'lich': 'lich', 'tin hoat dong': 'tin' };\nconst TAB_EMOJI = { td: '🍽️', tb: '📢', lich: '📅', tin: '🌟' };\nconst tabCode = (tab) => TAB_CODES[low(tab)] || low(tab).replace(/[^a-z0-9]+/g, '');\nconst parseTabs = (v) => String(v || 'Thực đơn').split(',').map((t) => t.trim()).filter(Boolean);\nconst colLetter = (i) => { let s = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };\nconst qTab = (tab) => `'${String(tab).replace(/'/g, \"''\")}'`;\nconst batchQuery = (tabs) => tabs.map((t) => 'ranges=' + encodeURIComponent(`${qTab(t)}!A1:Z`)).join('&');\n// valueRange -> { cols: {header: letter}, rows: [{...header: value, row_number}] }\nconst readTab = (vr) => {\n  const values = (vr && vr.values) || [];\n  const header = (values[0] || []).map((h) => String(h ?? '').trim());\n  const cols = {};\n  header.forEach((h, i) => { if (h) cols[h] = colLetter(i); });\n  const rows = values.slice(1).map((r, i) => {\n    const o = { row_number: i + 2 };\n    header.forEach((h, j) => { if (h) o[h] = r[j] ?? ''; });\n    return o;\n  });\n  return { cols, rows };\n};\nconst cell = (tab, cols, header, row) => {\n  if (!cols[header]) throw new Error(`Tab \"${tab}\" thiếu cột \"${header}\"`);\n  return `${qTab(tab)}!${cols[header]}${row}`;\n};\nconst PHONE = /(?:\\+?84|0)(?:\\d[\\s.-]?){8,10}\\d/;\nconst nowVN = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');\nconst todayVN = () => new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' });\n// ---- end shared helpers ----\n\n// Validate each approve/return against the current sheet and prepare the cells to write.\nconst cfg = {};\nfor (const it of $('Đọc Config').all()) { const k = String(it.json['Key'] ?? '').trim(); if (k) cfg[k] = String(it.json['Value'] ?? '').trim(); }\nconst tabs = parseTabs(cfg.CONTENT_TABS);\nconst ranges = ($input.first().json.valueRanges) || [];\nconst sheet = {};\ntabs.forEach((t, i) => { sheet[t] = readTab(ranges[i]); });\nconst out = [];\nfor (const it of $('Theo hành động').all(1)) {\n  const a = it.json;\n  const s = sheet[a.tab] || { cols: {}, rows: [] };\n  const r = s.rows.find((x) => x.row_number === Number(a.row_number));\n  const ref = `${a.code} ${a.row_number}`;\n  let ok = false, reply, data = [];\n  if (!r || !String(r['Ngày'] ?? '').trim()) reply = `Không có hàng ${a.row_number} trong tab ${a.tab}.`;\n  else if (truthy(r['Đã đăng'])) reply = `${ref} (${a.tab} ngày ${r['Ngày']}) đã đăng rồi.`;\n  else if (a.action_name === 'approve' && truthy(r['Duyệt'])) reply = `${ref} đã được duyệt trước đó.`;\n  else if (a.action_name === 'approve' && !String(r['Bản website'] ?? '').trim()) reply = `${ref} chưa có bản nháp nên chưa duyệt được.`;\n  else {\n    ok = true;\n    if (a.action_name === 'approve') {\n      data = [\n        { range: cell(a.tab, s.cols, 'Duyệt', r.row_number), values: [[true]] },\n        { range: cell(a.tab, s.cols, 'Người duyệt', r.row_number), values: [[a.approver]] },\n        { range: cell(a.tab, s.cols, 'Thời điểm duyệt', r.row_number), values: [[nowVN()]] },\n      ];\n      reply = `Đã duyệt ${ref} (${a.tab} ngày ${r['Ngày']}). Hệ thống sẽ đăng trong ít phút.`;\n    } else {\n      const note = [String(r['Ghi chú'] ?? '').trim(), `Trả lại bởi ${a.approver}: ${a.reason}`].filter(Boolean).join(' | ');\n      data = [{ range: cell(a.tab, s.cols, 'Ghi chú', r.row_number), values: [[note]] }];\n      reply = `Đã trả lại ${ref}. Lý do: ${a.reason}. Người nhập sửa trên bảng tính hoặc gửi lại.`;\n    }\n  }\n  out.push({ json: { ...a, ok, reply, data, route: ok ? 0 : 1 } });\n}\nreturn out;\n"
       }
     },
     {
@@ -290,154 +186,8 @@
       ],
       "parameters": {
         "mode": "expression",
-        "numberOutputs": 3,
+        "numberOutputs": 2,
         "output": "={{ $json.route }}"
-      }
-    },
-    {
-      "id": "z-13",
-      "name": "Ghi duyệt",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        2220,
-        -120
-      ],
-      "parameters": {
-        "operation": "update",
-        "documentId": {
-          "__rl": true,
-          "value": "[YOUR_GOOGLE_SHEET_ID]",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Thực đơn",
-          "mode": "name",
-          "cachedResultName": "Thực đơn"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Duyệt": "TRUE",
-            "Người duyệt": "={{ $json.approver }}",
-            "Thời điểm duyệt": "={{ $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss') }}",
-            "row_number": "={{ $json.row_number }}"
-          },
-          "matchingColumns": [
-            "row_number"
-          ],
-          "schema": [
-            {
-              "id": "Duyệt",
-              "displayName": "Duyệt",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Người duyệt",
-              "displayName": "Người duyệt",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Thời điểm duyệt",
-              "displayName": "Thời điểm duyệt",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "row_number",
-              "displayName": "row_number",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ]
-        },
-        "options": {
-          "cellFormat": "USER_ENTERED"
-        }
-      },
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
-          "name": "Google Sheets OAuth2"
-        }
-      }
-    },
-    {
-      "id": "z-14",
-      "name": "Ghi trả lại",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        2220,
-        60
-      ],
-      "parameters": {
-        "operation": "update",
-        "documentId": {
-          "__rl": true,
-          "value": "[YOUR_GOOGLE_SHEET_ID]",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Thực đơn",
-          "mode": "name",
-          "cachedResultName": "Thực đơn"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Ghi chú": "={{ $json.note }}",
-            "row_number": "={{ $json.row_number }}"
-          },
-          "matchingColumns": [
-            "row_number"
-          ],
-          "schema": [
-            {
-              "id": "Ghi chú",
-              "displayName": "Ghi chú",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "row_number",
-              "displayName": "row_number",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ]
-        },
-        "options": {
-          "cellFormat": "USER_ENTERED"
-        }
-      },
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
-          "name": "Google Sheets OAuth2"
-        }
       }
     },
     {
@@ -450,7 +200,7 @@
         -40
       ],
       "parameters": {
-        "jsCode": "return $input.all().map((it, i) => ({ json: $('Kiểm tra hàng').itemMatching(i).json }));"
+        "jsCode": "// The Sheets API returns its own response; take the reply from the checked item.\nreturn $input.all().map((it, i) => ({ json: $('Kiểm tra hàng').itemMatching(i).json }));\n"
       }
     },
     {
@@ -586,39 +336,6 @@
       }
     },
     {
-      "id": "z-19",
-      "name": "Đọc Thực đơn (báo)",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        220,
-        520
-      ],
-      "parameters": {
-        "operation": "read",
-        "documentId": {
-          "__rl": true,
-          "value": "[YOUR_GOOGLE_SHEET_ID]",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Thực đơn",
-          "mode": "name",
-          "cachedResultName": "Thực đơn"
-        },
-        "options": {}
-      },
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
-          "name": "Google Sheets OAuth2"
-        }
-      },
-      "executeOnce": true,
-      "alwaysOutputData": true
-    },
-    {
       "id": "z-20",
       "name": "Đọc Nhân sự (báo)",
       "type": "n8n-nodes-base.googleSheets",
@@ -657,11 +374,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        660,
+        1100,
         520
       ],
       "parameters": {
-        "jsCode": "const noAcc = (s) => String(s ?? '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/đ/g, 'd').toLowerCase();\nconst truthy = (v) => v === true || String(v).trim().toUpperCase() === 'TRUE';\nconst active = (v) => !['false', 'khong', 'no', '0', 'ngung'].includes(noAcc(v).trim());\nconst strip = (h) => String(h ?? '').replace(/<br\\s*\\/?>/gi, '\\n').replace(/<\\/(p|li|h\\d)>/gi, '\\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\\n{3,}/g, '\\n\\n').trim();\nconst cut = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);\nconst approvers = $('Đọc Nhân sự (báo)').all().map((i) => i.json).filter((j) => {\n  const r = noAcc(j['Vai trò']);\n  return active(j['Đang dùng']) && (r.includes('duyet') || r.includes('quan tri')) && String(j['Zalo chat ID'] || j['Zalo ID'] || '').trim();\n});\nconst out = [];\nfor (const r of $('Đọc Thực đơn (báo)').all().map((i) => i.json)) {\n  if (!String(r['Bản website'] ?? '').trim() || truthy(r['Duyệt']) || truthy(r['Đã đăng']) || String(r['Đã báo Zalo'] ?? '').trim()) continue;\n  const msg = [\n    `Bản nháp thực đơn ngày ${r['Ngày']} (hàng ${r.row_number})`,\n    `Người nhập: ${r['Người nhập'] || ''}`, '',\n    '— Bản website —', cut(strip(r['Bản website']), 900), '',\n    '— Bản Zalo —', cut(strip(r['Bản Zalo']), 450), '',\n    `Trả lời: duyệt ${r.row_number}`, `hoặc: trả lại ${r.row_number} <lý do>`,\n  ].join('\\n');\n  for (const a of approvers) out.push({ json: { chat_id: String(a['Zalo chat ID'] || a['Zalo ID']).trim(), reply: msg.slice(0, 2000), row_number: r.row_number } });\n}\nreturn out;"
+        "jsCode": "// ---- shared helpers (same block in every multi-tab Code node) ----\nconst noAcc = (s) => String(s ?? '').normalize('NFC').replace(/đ/g, 'd').replace(/Đ/g, 'D')\n  .normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');\nconst low = (s) => noAcc(s).toLowerCase().trim();\nconst truthy = (v) => v === true || ['TRUE', 'CO', 'X', '1'].includes(noAcc(v).trim().toUpperCase());\nconst TAB_CODES = { 'thuc don': 'td', 'thong bao': 'tb', 'lich/tkb': 'lich', 'lich': 'lich', 'tin hoat dong': 'tin' };\nconst TAB_EMOJI = { td: '🍽️', tb: '📢', lich: '📅', tin: '🌟' };\nconst tabCode = (tab) => TAB_CODES[low(tab)] || low(tab).replace(/[^a-z0-9]+/g, '');\nconst parseTabs = (v) => String(v || 'Thực đơn').split(',').map((t) => t.trim()).filter(Boolean);\nconst colLetter = (i) => { let s = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };\nconst qTab = (tab) => `'${String(tab).replace(/'/g, \"''\")}'`;\nconst batchQuery = (tabs) => tabs.map((t) => 'ranges=' + encodeURIComponent(`${qTab(t)}!A1:Z`)).join('&');\n// valueRange -> { cols: {header: letter}, rows: [{...header: value, row_number}] }\nconst readTab = (vr) => {\n  const values = (vr && vr.values) || [];\n  const header = (values[0] || []).map((h) => String(h ?? '').trim());\n  const cols = {};\n  header.forEach((h, i) => { if (h) cols[h] = colLetter(i); });\n  const rows = values.slice(1).map((r, i) => {\n    const o = { row_number: i + 2 };\n    header.forEach((h, j) => { if (h) o[h] = r[j] ?? ''; });\n    return o;\n  });\n  return { cols, rows };\n};\nconst cell = (tab, cols, header, row) => {\n  if (!cols[header]) throw new Error(`Tab \"${tab}\" thiếu cột \"${header}\"`);\n  return `${qTab(tab)}!${cols[header]}${row}`;\n};\nconst PHONE = /(?:\\+?84|0)(?:\\d[\\s.-]?){8,10}\\d/;\nconst nowVN = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');\nconst todayVN = () => new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' });\n// ---- end shared helpers ----\n\n// New drafts -> the approvers responsible for that content type (Loại nội dung empty = all).\nconst active = (v) => !['false', 'khong', 'no', '0', 'ngung'].includes(low(v));\nconst strip = (h) => String(h ?? '').replace(/<br\\s*\\/?>/gi, '\\n').replace(/<\\/(p|li|h\\d)>/gi, '\\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\\n{3,}/g, '\\n\\n').trim();\nconst cut = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);\nconst { tabs } = $('Tab cần đọc (báo)').first().json;\nconst ranges = ($input.first().json.valueRanges) || [];\nconst approvers = $('Đọc Nhân sự (báo)').all().map((i) => i.json).filter((j) => {\n  const r = low(j['Vai trò']);\n  return active(j['Đang dùng']) && (r.includes('duyet') || r.includes('quan tri')) && String(j['Zalo chat ID'] || j['Zalo ID'] || '').trim();\n}).map((j) => ({ chat_id: String(j['Zalo chat ID'] || j['Zalo ID']).trim(), kinds: String(j['Loại nội dung'] ?? '').split(',').map((s) => tabCode(s)).filter(Boolean) }));\nconst out = [];\ntabs.forEach((tab, t) => {\n  const code = tabCode(tab);\n  const { cols, rows } = readTab(ranges[t]);\n  if (!cols['Đã báo Zalo']) return; // tab without the column: nothing to track, skip quietly\n  for (const r of rows) {\n    if (!String(r['Bản website'] ?? '').trim() || truthy(r['Duyệt']) || truthy(r['Đã đăng']) || String(r['Đã báo Zalo'] ?? '').trim()) continue;\n    const msg = [\n      `Bản nháp ${tab} ngày ${r['Ngày']} (mã ${code} ${r.row_number})`,\n      `Người nhập: ${r['Người nhập'] || ''}`, '',\n      '— Bản website —', cut(strip(r['Bản website']), 900), '',\n      '— Bản Zalo —', cut(strip(r['Bản Zalo']), 450), '',\n      `Trả lời: duyệt ${code} ${r.row_number}`, `hoặc: trả lại ${code} ${r.row_number} <lý do>`,\n    ].join('\\n');\n    for (const a of approvers) {\n      if (a.kinds.length && !a.kinds.includes(code)) continue;\n      out.push({ json: { chat_id: a.chat_id, reply: msg.slice(0, 2000), tab, row_number: r.row_number, cell_notified: cell(tab, cols, 'Đã báo Zalo', r.row_number) } });\n    }\n  }\n});\nreturn out;\n"
       }
     },
     {
@@ -670,7 +387,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        880,
+        1320,
         520
       ],
       "parameters": {
@@ -691,24 +408,98 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
+        1540,
         520
       ],
       "parameters": {
-        "jsCode": "// Mark a row as notified once at least one approver received it (failed sends retry next run).\nconst done = new Set();\n$input.all().forEach((it, i) => { if (it.json && it.json.ok === true) done.add($('Chọn bản nháp cần báo').itemMatching(i).json.row_number); });\nreturn [...done].map((row_number) => ({ json: { row_number } }));"
+        "jsCode": "// ---- shared helpers (same block in every multi-tab Code node) ----\nconst noAcc = (s) => String(s ?? '').normalize('NFC').replace(/đ/g, 'd').replace(/Đ/g, 'D')\n  .normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');\nconst low = (s) => noAcc(s).toLowerCase().trim();\nconst truthy = (v) => v === true || ['TRUE', 'CO', 'X', '1'].includes(noAcc(v).trim().toUpperCase());\nconst TAB_CODES = { 'thuc don': 'td', 'thong bao': 'tb', 'lich/tkb': 'lich', 'lich': 'lich', 'tin hoat dong': 'tin' };\nconst TAB_EMOJI = { td: '🍽️', tb: '📢', lich: '📅', tin: '🌟' };\nconst tabCode = (tab) => TAB_CODES[low(tab)] || low(tab).replace(/[^a-z0-9]+/g, '');\nconst parseTabs = (v) => String(v || 'Thực đơn').split(',').map((t) => t.trim()).filter(Boolean);\nconst colLetter = (i) => { let s = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };\nconst qTab = (tab) => `'${String(tab).replace(/'/g, \"''\")}'`;\nconst batchQuery = (tabs) => tabs.map((t) => 'ranges=' + encodeURIComponent(`${qTab(t)}!A1:Z`)).join('&');\n// valueRange -> { cols: {header: letter}, rows: [{...header: value, row_number}] }\nconst readTab = (vr) => {\n  const values = (vr && vr.values) || [];\n  const header = (values[0] || []).map((h) => String(h ?? '').trim());\n  const cols = {};\n  header.forEach((h, i) => { if (h) cols[h] = colLetter(i); });\n  const rows = values.slice(1).map((r, i) => {\n    const o = { row_number: i + 2 };\n    header.forEach((h, j) => { if (h) o[h] = r[j] ?? ''; });\n    return o;\n  });\n  return { cols, rows };\n};\nconst cell = (tab, cols, header, row) => {\n  if (!cols[header]) throw new Error(`Tab \"${tab}\" thiếu cột \"${header}\"`);\n  return `${qTab(tab)}!${cols[header]}${row}`;\n};\nconst PHONE = /(?:\\+?84|0)(?:\\d[\\s.-]?){8,10}\\d/;\nconst nowVN = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');\nconst todayVN = () => new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' });\n// ---- end shared helpers ----\n\n// Mark a row as notified once at least one approver received it (failed sends retry next run).\nconst done = new Map();\n$input.all().forEach((it, i) => {\n  if (it.json && it.json.ok === true) { const s = $('Chọn bản nháp cần báo').itemMatching(i).json; done.set(s.cell_notified, true); }\n});\nconst stamp = nowVN();\nconst data = [...done.keys()].map((range) => ({ range, values: [[stamp]] }));\nreturn data.length ? [{ json: { data } }] : [];\n"
       }
     },
     {
-      "id": "z-24",
-      "name": "Ghi đã báo Zalo",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        1320,
-        520
-      ],
       "parameters": {
-        "operation": "update",
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/[YOUR_GOOGLE_SHEET_ID]/values/{{ encodeURIComponent($json.range) }}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ values: [[ $json.date, $json.content, $json.entered_by ]] }) }}"
+      },
+      "id": "1240217c-1b7f-5059-940f-e015cf72b968",
+      "name": "Ghi nội dung",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        -220
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/[YOUR_GOOGLE_SHEET_ID]/values:batchGet?{{ $json.batch_query }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "cc130b73-04e2-5842-be2a-b2d3bfe7be5d",
+      "name": "Đọc các tab (duyệt)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/[YOUR_GOOGLE_SHEET_ID]/values:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ valueInputOption: 'RAW', data: $json.data }) }}"
+      },
+      "id": "b6f67ce6-4725-5ebc-9736-1f9eaa4c2eee",
+      "name": "Ghi duyệt / trả lại",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2220,
+        -120
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
         "documentId": {
           "__rl": true,
           "value": "[YOUR_GOOGLE_SHEET_ID]",
@@ -716,44 +507,88 @@
         },
         "sheetName": {
           "__rl": true,
-          "value": "Thực đơn",
+          "value": "Config",
           "mode": "name",
-          "cachedResultName": "Thực đơn"
+          "cachedResultName": "Config"
         },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Đã báo Zalo": "={{ $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss') }}",
-            "row_number": "={{ $json.row_number }}"
-          },
-          "matchingColumns": [
-            "row_number"
-          ],
-          "schema": [
-            {
-              "id": "Đã báo Zalo",
-              "displayName": "Đã báo Zalo",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "row_number",
-              "displayName": "row_number",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ]
-        },
-        "options": {
-          "cellFormat": "USER_ENTERED"
+        "options": {}
+      },
+      "id": "4b05f8c9-293d-5188-87a9-e51357f009bd",
+      "name": "Đọc Config (báo)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        220,
+        520
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
         }
       },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared helpers (same block in every multi-tab Code node) ----\nconst noAcc = (s) => String(s ?? '').normalize('NFC').replace(/đ/g, 'd').replace(/Đ/g, 'D')\n  .normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');\nconst low = (s) => noAcc(s).toLowerCase().trim();\nconst truthy = (v) => v === true || ['TRUE', 'CO', 'X', '1'].includes(noAcc(v).trim().toUpperCase());\nconst TAB_CODES = { 'thuc don': 'td', 'thong bao': 'tb', 'lich/tkb': 'lich', 'lich': 'lich', 'tin hoat dong': 'tin' };\nconst TAB_EMOJI = { td: '🍽️', tb: '📢', lich: '📅', tin: '🌟' };\nconst tabCode = (tab) => TAB_CODES[low(tab)] || low(tab).replace(/[^a-z0-9]+/g, '');\nconst parseTabs = (v) => String(v || 'Thực đơn').split(',').map((t) => t.trim()).filter(Boolean);\nconst colLetter = (i) => { let s = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };\nconst qTab = (tab) => `'${String(tab).replace(/'/g, \"''\")}'`;\nconst batchQuery = (tabs) => tabs.map((t) => 'ranges=' + encodeURIComponent(`${qTab(t)}!A1:Z`)).join('&');\n// valueRange -> { cols: {header: letter}, rows: [{...header: value, row_number}] }\nconst readTab = (vr) => {\n  const values = (vr && vr.values) || [];\n  const header = (values[0] || []).map((h) => String(h ?? '').trim());\n  const cols = {};\n  header.forEach((h, i) => { if (h) cols[h] = colLetter(i); });\n  const rows = values.slice(1).map((r, i) => {\n    const o = { row_number: i + 2 };\n    header.forEach((h, j) => { if (h) o[h] = r[j] ?? ''; });\n    return o;\n  });\n  return { cols, rows };\n};\nconst cell = (tab, cols, header, row) => {\n  if (!cols[header]) throw new Error(`Tab \"${tab}\" thiếu cột \"${header}\"`);\n  return `${qTab(tab)}!${cols[header]}${row}`;\n};\nconst PHONE = /(?:\\+?84|0)(?:\\d[\\s.-]?){8,10}\\d/;\nconst nowVN = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');\nconst todayVN = () => new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' });\n// ---- end shared helpers ----\n\nconst cfg = {};\nfor (const it of $('Đọc Config (báo)').all()) { const k = String(it.json['Key'] ?? '').trim(); if (k) cfg[k] = String(it.json['Value'] ?? '').trim(); }\nconst tabs = parseTabs(cfg.CONTENT_TABS);\nreturn [{ json: { tabs, batch_query: batchQuery(tabs) } }];\n"
+      },
+      "id": "0d845b7b-4924-5dd5-b4f3-f49cf15d7b80",
+      "name": "Tab cần đọc (báo)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/[YOUR_GOOGLE_SHEET_ID]/values:batchGet?{{ $json.batch_query }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "2dbe03c6-ea9c-5f95-922b-b9561abb37da",
+      "name": "Đọc các tab (báo)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        520
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/[YOUR_GOOGLE_SHEET_ID]/values:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ valueInputOption: 'RAW', data: $json.data }) }}"
+      },
+      "id": "d8dafa14-0842-5322-a2be-5ab73ecf326c",
+      "name": "Ghi đã báo Zalo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        520
+      ],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
@@ -833,14 +668,14 @@
       "main": [
         [
           {
-            "node": "Ghi Thực đơn",
+            "node": "Ghi nội dung",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Đọc Thực đơn (duyệt)",
+            "node": "Đọc các tab (duyệt)",
             "type": "main",
             "index": 0
           }
@@ -861,33 +696,11 @@
         ]
       ]
     },
-    "Ghi Thực đơn": {
-      "main": [
-        [
-          {
-            "node": "Trả lời sau khi ghi",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Trả lời sau khi ghi": {
       "main": [
         [
           {
             "node": "Zalo - Gửi trả lời",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Đọc Thực đơn (duyệt)": {
-      "main": [
-        [
-          {
-            "node": "Kiểm tra hàng",
             "type": "main",
             "index": 0
           }
@@ -909,14 +722,7 @@
       "main": [
         [
           {
-            "node": "Ghi duyệt",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Ghi trả lại",
+            "node": "Ghi duyệt / trả lại",
             "type": "main",
             "index": 0
           }
@@ -924,28 +730,6 @@
         [
           {
             "node": "Zalo - Gửi trả lời",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Ghi duyệt": {
-      "main": [
-        [
-          {
-            "node": "Trả lời sau khi duyệt",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Ghi trả lại": {
-      "main": [
-        [
-          {
-            "node": "Trả lời sau khi duyệt",
             "type": "main",
             "index": 0
           }
@@ -957,39 +741,6 @@
         [
           {
             "node": "Zalo - Gửi trả lời",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Lịch - Báo bản nháp mới (2 phút)": {
-      "main": [
-        [
-          {
-            "node": "Đọc Thực đơn (báo)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Đọc Thực đơn (báo)": {
-      "main": [
-        [
-          {
-            "node": "Đọc Nhân sự (báo)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Đọc Nhân sự (báo)": {
-      "main": [
-        [
-          {
-            "node": "Chọn bản nháp cần báo",
             "type": "main",
             "index": 0
           }
@@ -1028,6 +779,94 @@
           }
         ]
       ]
+    },
+    "Ghi nội dung": {
+      "main": [
+        [
+          {
+            "node": "Trả lời sau khi ghi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc các tab (duyệt)": {
+      "main": [
+        [
+          {
+            "node": "Kiểm tra hàng",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ghi duyệt / trả lại": {
+      "main": [
+        [
+          {
+            "node": "Trả lời sau khi duyệt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lịch - Báo bản nháp mới (2 phút)": {
+      "main": [
+        [
+          {
+            "node": "Đọc Config (báo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc Config (báo)": {
+      "main": [
+        [
+          {
+            "node": "Đọc Nhân sự (báo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tab cần đọc (báo)": {
+      "main": [
+        [
+          {
+            "node": "Đọc các tab (báo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc các tab (báo)": {
+      "main": [
+        [
+          {
+            "node": "Chọn bản nháp cần báo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc Nhân sự (báo)": {
+      "main": [
+        [
+          {
+            "node": "Tab cần đọc (báo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -1038,7 +877,7 @@
     "callerPolicy": "workflowsFromSameOwner",
     "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
   },
-  "versionId": "z-gateway-prototype-1",
+  "versionId": "z-gateway-b5",
   "meta": {
     "templateCredsSetupCompleted": false
   },

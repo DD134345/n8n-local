@@ -67,7 +67,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const err = $('Error Trigger').first().json;\nreturn [{\n  json: {\n    Timestamp: $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss'),\n    Workflow: err.workflow?.name || 'Unknown',\n    Status: 'ERROR',\n    'Last Run': $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss'),\n    Details: [\n      err.execution?.lastNodeExecuted ? 'Node: ' + err.execution.lastNodeExecuted : null,\n      err.execution?.error?.message || null,\n      err.execution?.url || null,\n    ].filter(Boolean).join(' | '),\n  },\n}];\n"
+        "jsCode": "const err = $('Error Trigger').first().json;\nconst cfg = $('Read Config').first().json;\nconst mailOk = Boolean(String(cfg.ADMIN_EMAIL || '').trim() && String(cfg.SMTP_FROM || '').trim());\nreturn [{\n  json: {\n    Timestamp: $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss'),\n    Workflow: err.workflow?.name || 'Unknown',\n    Status: 'ERROR',\n    mail_ok: mailOk,\n    'Last Run': $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss'),\n    Details: [\n      err.execution?.lastNodeExecuted ? 'Node: ' + err.execution.lastNodeExecuted : null,\n      err.execution?.error?.message || null,\n      err.execution?.url || null,\n      mailOk ? null : 'ADMIN_EMAIL/SMTP_FROM missing in Config - no email sent',\n    ].filter(Boolean).join(' | '),\n  },\n}];\n"
       },
       "id": "h1000001-0001-4000-8000-000000000004",
       "name": "Build Failure Row",
@@ -173,8 +173,8 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') }}",
-        "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') }}",
+        "fromEmail": "={{ $('Read Config').first().json.SMTP_FROM }}",
+        "toEmail": "={{ $('Read Config').first().json.ADMIN_EMAIL }}",
         "subject": "=[FAILURE] {{ $('Error Trigger').first().json.workflow?.name || 'Unknown workflow' }} - Victoria TL3",
         "emailFormat": "html",
         "html": "=<h2>❌ Workflow failed</h2>\n<p><strong>Workflow:</strong> {{ $('Error Trigger').first().json.workflow?.name || '?' }}</p>\n<p><strong>Failed node:</strong> {{ $('Error Trigger').first().json.execution?.lastNodeExecuted || '?' }}</p>\n<p><strong>Time:</strong> {{ $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm') }}</p>\n<p><strong>Error message:</strong></p>\n<pre>{{ $('Error Trigger').first().json.execution?.error?.message || 'No detail' }}</pre>\n<p><a href=\"{{ $('Error Trigger').first().json.execution?.url || '#' }}\">Open the execution in n8n</a></p>\n<hr>\n<p><em>Sent automatically by H - Global Error Handler. Nothing was published as a result of this failure.</em></p>",
@@ -187,8 +187,8 @@
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1400,
-        340
+        1640,
+        240
       ],
       "notesInFlow": true,
       "notes": "Tells a person. This is the last step - if SMTP is down, the System Health row still exists.",
@@ -198,6 +198,50 @@
           "name": "Victoria School SMTP"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "abc1b37b-de6f-5d62-85ef-15f6c55f64e3",
+              "leftValue": "={{ $('Build Failure Row').first().json.mail_ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "73de5e3c-a26d-5097-9b30-3d51ac4354b9",
+      "name": "IF - Email configured",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        340
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "908d8c1e-9b5f-55bf-812c-fa8998a736ea",
+      "name": "No Op - No email",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        440
+      ]
     }
   ],
   "connections": {
@@ -249,7 +293,25 @@
       "main": [
         [
           {
+            "node": "IF - Email configured",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Email configured": {
+      "main": [
+        [
+          {
             "node": "Email - Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Op - No email",
             "type": "main",
             "index": 0
           }

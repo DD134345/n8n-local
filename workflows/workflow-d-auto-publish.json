@@ -1,47 +1,46 @@
 {
   "name": "D - Auto-Publish (WordPress + Manual Fallback)",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
+  },
+  "versionId": "d-publish-b5",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": ""
+  },
+  "tags": [
+    {
+      "name": "victoria-tl3"
+    },
+    {
+      "name": "publishing"
+    }
+  ],
+  "pinData": {},
   "nodes": [
     {
       "parameters": {
-        "pollTimes": {
-          "item": [
+        "rule": {
+          "interval": [
             {
-              "mode": "everyMinute"
+              "field": "minutes",
+              "minutesInterval": 2
             }
-          ]
-        },
-        "documentId": {
-          "__rl": true,
-          "value": "[YOUR_GOOGLE_SHEET_ID]",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "gid=0",
-          "mode": "id",
-          "cachedResultName": "Thực đơn"
-        },
-        "event": "rowUpdate",
-        "options": {
-          "columnsToWatch": [
-            "Duyệt"
           ]
         }
       },
-      "id": "d1000001-0001-4000-8000-000000000001",
-      "name": "Sheets Trigger - Approval Changed",
-      "type": "n8n-nodes-base.googleSheetsTrigger",
-      "typeVersion": 1,
+      "id": "afecf52a-a775-5a21-b34b-a16bc7a1ebea",
+      "name": "Lịch - mỗi 2 phút",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
       "position": [
-        200,
+        0,
         340
-      ],
-      "credentials": {
-        "googleSheetsTriggerOAuth2Api": {
-          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
-          "name": "Google Sheets Trigger OAuth2"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -54,24 +53,58 @@
         "sheetName": {
           "__rl": true,
           "value": "Config",
-          "mode": "list",
+          "mode": "name",
           "cachedResultName": "Config"
         },
-        "options": {
-          "range": "A:D"
-        }
+        "options": {}
       },
-      "id": "d1000001-0001-4000-8000-000000000011",
+      "id": "df059b56-6248-5d1a-8348-1a17564b8c75",
       "name": "Read Config Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        440,
+        220,
         340
       ],
-      "executeOnce": true,
-      "notesInFlow": true,
-      "notes": "Đọc tab Config của Google Sheet. Thay cho $vars (n8n Community không có biến tùy chỉnh).",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared helpers (same block in every multi-tab Code node) ----\nconst noAcc = (s) => String(s ?? '').normalize('NFC').replace(/đ/g, 'd').replace(/Đ/g, 'D')\n  .normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');\nconst low = (s) => noAcc(s).toLowerCase().trim();\nconst truthy = (v) => v === true || ['TRUE', 'CO', 'X', '1'].includes(noAcc(v).trim().toUpperCase());\nconst TAB_CODES = { 'thuc don': 'td', 'thong bao': 'tb', 'lich/tkb': 'lich', 'lich': 'lich', 'tin hoat dong': 'tin' };\nconst TAB_EMOJI = { td: '🍽️', tb: '📢', lich: '📅', tin: '🌟' };\nconst tabCode = (tab) => TAB_CODES[low(tab)] || low(tab).replace(/[^a-z0-9]+/g, '');\nconst parseTabs = (v) => String(v || 'Thực đơn').split(',').map((t) => t.trim()).filter(Boolean);\nconst colLetter = (i) => { let s = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };\nconst qTab = (tab) => `'${String(tab).replace(/'/g, \"''\")}'`;\nconst batchQuery = (tabs) => tabs.map((t) => 'ranges=' + encodeURIComponent(`${qTab(t)}!A1:Z`)).join('&');\n// valueRange -> { cols: {header: letter}, rows: [{...header: value, row_number}] }\nconst readTab = (vr) => {\n  const values = (vr && vr.values) || [];\n  const header = (values[0] || []).map((h) => String(h ?? '').trim());\n  const cols = {};\n  header.forEach((h, i) => { if (h) cols[h] = colLetter(i); });\n  const rows = values.slice(1).map((r, i) => {\n    const o = { row_number: i + 2 };\n    header.forEach((h, j) => { if (h) o[h] = r[j] ?? ''; });\n    return o;\n  });\n  return { cols, rows };\n};\nconst cell = (tab, cols, header, row) => {\n  if (!cols[header]) throw new Error(`Tab \"${tab}\" thiếu cột \"${header}\"`);\n  return `${qTab(tab)}!${cols[header]}${row}`;\n};\nconst PHONE = /(?:\\+?84|0)(?:\\d[\\s.-]?){8,10}\\d/;\nconst nowVN = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');\nconst todayVN = () => new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' });\n// ---- end shared helpers ----\n\nconst cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Khoá'] ?? item.json['Khóa'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Giá trị'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nconst need = ['CMS_TYPE', 'SMTP_FROM', 'ADMIN_EMAIL', 'POSTER_EMAIL'];\nif (String(cfg.CMS_TYPE || '').toLowerCase() === 'wordpress') need.push('WORDPRESS_URL');\nconst missing = need.filter((k) => !String(cfg[k] ?? '').trim());\nif (missing.length) throw new Error('Config tab thiếu khoá: ' + missing.join(', '));\ncfg.CMS_TYPE = String(cfg.CMS_TYPE).toLowerCase();\ncfg.WORDPRESS_URL = String(cfg.WORDPRESS_URL || '').replace(/\\/+$/, '');\n// The WordPress password is sent to this URL, so anyone who can edit Config could redirect it.\n// Only public https sites are accepted (protect the Config tab too).\nif (cfg.CMS_TYPE === 'wordpress') {\n  const m = cfg.WORDPRESS_URL.match(/^https:\\/\\/([^/:?#]+)(?::\\d+)?(\\/[^?#]*)?$/i);\n  const host = m ? m[1].toLowerCase() : '';\n  const internal = !host || !host.includes('.') || /^(localhost|winhost|n8n|postgres)$/.test(host) || /\\.(local|internal|lan)$/.test(host)\n    || /^(127\\.|10\\.|192\\.168\\.|169\\.254\\.|0\\.)/.test(host) || /^172\\.(1[6-9]|2\\d|3[01])\\./.test(host) || /^\\[?[0-9a-f:]+\\]?$/.test(host);\n  if (internal) throw new Error('WORDPRESS_URL trong Config phải là địa chỉ https công khai của website (ví dụ https://truong.edu.vn)');\n}\ncfg.CONTENT_TABS = parseTabs(cfg.CONTENT_TABS).join(', ');\ncfg.batch_query = batchQuery(parseTabs(cfg.CONTENT_TABS));\nreturn [{ json: cfg }];\n"
+      },
+      "id": "0e39a929-b670-5618-b656-fbed17e155d8",
+      "name": "Read Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/[YOUR_GOOGLE_SHEET_ID]/values:batchGet?{{ $json.batch_query }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "c4f5fa3b-9e84-569b-9be1-e8b1836e2a0b",
+      "name": "Đọc các tab nội dung",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        340
+      ],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
@@ -81,18 +114,16 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\n// Carry the triggering rows through so downstream nodes keep their data,\n// while $('Read Config').first().json.KEY still resolves.\nconst rows = $('Sheets Trigger - Approval Changed').all();\nif (rows.length === 0) return [{ json: cfg }];\nreturn rows.map((item, i) => ({ json: { ...cfg, ...item.json }, pairedItem: { item: i } }));\n"
+        "jsCode": "// ---- shared helpers (same block in every multi-tab Code node) ----\nconst noAcc = (s) => String(s ?? '').normalize('NFC').replace(/đ/g, 'd').replace(/Đ/g, 'D')\n  .normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');\nconst low = (s) => noAcc(s).toLowerCase().trim();\nconst truthy = (v) => v === true || ['TRUE', 'CO', 'X', '1'].includes(noAcc(v).trim().toUpperCase());\nconst TAB_CODES = { 'thuc don': 'td', 'thong bao': 'tb', 'lich/tkb': 'lich', 'lich': 'lich', 'tin hoat dong': 'tin' };\nconst TAB_EMOJI = { td: '🍽️', tb: '📢', lich: '📅', tin: '🌟' };\nconst tabCode = (tab) => TAB_CODES[low(tab)] || low(tab).replace(/[^a-z0-9]+/g, '');\nconst parseTabs = (v) => String(v || 'Thực đơn').split(',').map((t) => t.trim()).filter(Boolean);\nconst colLetter = (i) => { let s = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };\nconst qTab = (tab) => `'${String(tab).replace(/'/g, \"''\")}'`;\nconst batchQuery = (tabs) => tabs.map((t) => 'ranges=' + encodeURIComponent(`${qTab(t)}!A1:Z`)).join('&');\n// valueRange -> { cols: {header: letter}, rows: [{...header: value, row_number}] }\nconst readTab = (vr) => {\n  const values = (vr && vr.values) || [];\n  const header = (values[0] || []).map((h) => String(h ?? '').trim());\n  const cols = {};\n  header.forEach((h, i) => { if (h) cols[h] = colLetter(i); });\n  const rows = values.slice(1).map((r, i) => {\n    const o = { row_number: i + 2 };\n    header.forEach((h, j) => { if (h) o[h] = r[j] ?? ''; });\n    return o;\n  });\n  return { cols, rows };\n};\nconst cell = (tab, cols, header, row) => {\n  if (!cols[header]) throw new Error(`Tab \"${tab}\" thiếu cột \"${header}\"`);\n  return `${qTab(tab)}!${cols[header]}${row}`;\n};\nconst PHONE = /(?:\\+?84|0)(?:\\d[\\s.-]?){8,10}\\d/;\nconst nowVN = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');\nconst todayVN = () => new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' });\n// ---- end shared helpers ----\n\n// Approved, not yet published rows across every content tab. \"IF - Approved and Not Posted\"\n// re-checks the same conditions as a second guard (hard rule 2).\nconst cfg = $('Read Config').first().json;\nconst tabs = parseTabs(cfg.CONTENT_TABS);\nconst ranges = ($input.first().json.valueRanges) || [];\n// WP_CATEGORIES: \"Thực đơn=12; Thông báo=5\"\nconst cats = {};\nString(cfg.WP_CATEGORIES || '').split(/[;\\n]/).forEach((p) => {\n  const [k, v] = p.split('=');\n  if (k && v && /^\\d+$/.test(v.trim())) cats[low(k)] = Number(v.trim());\n});\nconst out = [];\ntabs.forEach((tab, t) => {\n  const { cols, rows } = readTab(ranges[t]);\n  for (const r of rows) {\n    if (!truthy(r['Duyệt']) || truthy(r['Đã đăng']) || String(r['URL bài đăng'] ?? '').trim()) continue;\n    if (!String(r['Bản website'] ?? '').trim()) continue;\n    out.push({ json: {\n      ...r,\n      'Duyệt': true, 'Đã đăng': false,\n      'Người duyệt': String(r['Người duyệt'] ?? '').trim() || 'không xác định (xem lịch sử phiên bản)',\n      tab, row_number: r.row_number,\n      title: `${tab} - ${r['Ngày']}`,\n      wp_categories: cats[low(tab)] ? [cats[low(tab)]] : [],\n      cell_posted: cell(tab, cols, 'Đã đăng', r.row_number), cell_url: cell(tab, cols, 'URL bài đăng', r.row_number),\n      cell_note: cell(tab, cols, 'Ghi chú', r.row_number),\n    } });\n  }\n});\nreturn out;\n"
       },
-      "id": "d1000001-0001-4000-8000-000000000012",
-      "name": "Read Config",
+      "id": "ba1bcca4-ebaa-500b-ac11-b3ada49056de",
+      "name": "Chọn hàng đã duyệt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        680,
+        880,
         340
-      ],
-      "notesInFlow": true,
-      "notes": "Gộp các dòng Key/Value thành một object để các node sau gọi qua $('Read Config')."
+      ]
     },
     {
       "parameters": {
@@ -143,7 +174,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        920,
+        1120,
         340
       ]
     },
@@ -155,7 +186,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "leftValue": "={{ ($('Read Config')?.first()?.json?.CMS_TYPE || 'wordpress') || 'wordpress' }}",
+                    "leftValue": "={{ $('Read Config').first().json.CMS_TYPE }}",
                     "rightValue": "wordpress",
                     "operator": {
                       "type": "string",
@@ -170,7 +201,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "leftValue": "={{ ($('Read Config')?.first()?.json?.CMS_TYPE || 'wordpress') || 'wordpress' }}",
+                    "leftValue": "={{ $('Read Config').first().json.CMS_TYPE }}",
                     "rightValue": "manual",
                     "operator": {
                       "type": "string",
@@ -194,18 +225,18 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        1160,
+        1360,
         340
       ]
     },
     {
       "parameters": {
-        "url": "={{ ($('Read Config')?.first()?.json?.WORDPRESS_URL || 'https://victoria-thanglong3.edu.vn') || 'https://your-school-site.edu.vn' }}/wp-json/wp/v2/posts",
+        "url": "={{ $('Read Config').first().json.WORDPRESS_URL }}/wp-json/wp/v2/posts",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"title\": \"{{ $json['Ngày'] }} - Thực đơn\",\n  \"content\": {{ JSON.stringify($json['Bản website']) }},\n  \"status\": \"publish\",\n  \"categories\": []\n}",
+        "jsonBody": "={{ JSON.stringify({ title: $json.title, content: $json[\"Bản website\"], status: \"publish\", categories: $json.wp_categories }) }}",
         "options": {
           "timeout": 30000
         }
@@ -215,12 +246,12 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1400,
+        1600,
         220
       ],
       "credentials": {
         "httpBasicAuth": {
-          "id": "CREDENTIAL_ID_WP",
+          "id": "[YOUR_WORDPRESS_CREDENTIAL_ID]",
           "name": "WordPress Application Password"
         }
       },
@@ -237,22 +268,58 @@
               "type": "string"
             },
             {
-              "id": "set-published",
-              "name": "da_dang",
-              "value": "TRUE",
-              "type": "string"
-            },
-            {
               "id": "set-method",
               "name": "publish_method",
               "value": "WordPress API",
               "type": "string"
             },
             {
-              "id": "set-row-number",
+              "id": "39d162b8-bf06-5cc8-964a-7e9c64d0c38a",
+              "name": "tab",
+              "value": "={{ $('IF - Approved and Not Posted').item.json.tab }}",
+              "type": "string"
+            },
+            {
+              "id": "9797ec5a-d614-5422-9ea8-e3f40082cc00",
               "name": "row_number",
-              "value": "={{ $(\"Sheets Trigger - Approval Changed\").item.json.row_number }}",
+              "value": "={{ $('IF - Approved and Not Posted').item.json.row_number }}",
               "type": "number"
+            },
+            {
+              "id": "da1d04b4-ddd9-5e51-b492-e5c7e27bdb8d",
+              "name": "ngay",
+              "value": "={{ $('IF - Approved and Not Posted').item.json['Ngày'] }}",
+              "type": "string"
+            },
+            {
+              "id": "779c881c-597b-54f1-bd98-4bd2f6f426e8",
+              "name": "approved_by",
+              "value": "={{ $('IF - Approved and Not Posted').item.json['Người duyệt'] }}",
+              "type": "string"
+            },
+            {
+              "id": "ddb61439-2cd3-584b-8a9f-b31ee7e1e813",
+              "name": "approved_at",
+              "value": "={{ $('IF - Approved and Not Posted').item.json['Thời điểm duyệt'] }}",
+              "type": "string"
+            },
+            {
+              "id": "53edc718-849e-5df8-bff4-cf514fb11c87",
+              "name": "cell_posted",
+              "value": "={{ $('IF - Approved and Not Posted').item.json.cell_posted }}",
+              "type": "string"
+            },
+            {
+              "id": "80446a69-951f-5a92-a290-d1366525113e",
+              "name": "cell_url",
+              "value": "={{ $('IF - Approved and Not Posted').item.json.cell_url }}",
+              "type": "string"
+            },
+            {
+              "id": "13759bae-f8fe-5a2a-8f44-e676644b7375",
+              "name": "cell_note",
+              "value": "={{ $('IF - Approved and Not Posted').item.json.cell_note }}",
+              "type": "string"
             }
           ]
         },
@@ -263,17 +330,17 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1640,
+        1840,
         140
       ]
     },
     {
       "parameters": {
-        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
-        "toEmail": "={{ ($('Read Config')?.first()?.json?.POSTER_EMAIL || 'poster@victoria.edu.vn') || 'poster@victoria.edu.vn' }}",
-        "subject": "=[CẦN ĐĂNG] {{ $('IF - Approved and Not Posted').item.json['Ngày'] }} - Thực đơn Victoria TL3",
+        "fromEmail": "={{ $('Read Config').first().json.SMTP_FROM }}",
+        "toEmail": "={{ $('Read Config').first().json.POSTER_EMAIL }}",
+        "subject": "=[CẦN ĐĂNG] {{ $('IF - Approved and Not Posted').item.json['Ngày'] }} - {{ $('IF - Approved and Not Posted').item.json.tab }}",
         "emailFormat": "html",
-        "html": "=<h2>Nội dung cần đăng lên website</h2>\n<p><strong>Ngày:</strong> {{ $('IF - Approved and Not Posted').item.json['Ngày'] }}</p>\n<p><strong>Người duyệt:</strong> {{ $('IF - Approved and Not Posted').item.json['Người duyệt'] }}</p>\n<p><strong>Thời điểm duyệt:</strong> {{ $('IF - Approved and Not Posted').item.json['Thời điểm duyệt'] }}</p>\n<hr>\n<h3>Bản website (copy & paste vào CMS):</h3>\n{{ $('IF - Approved and Not Posted').item.json['Bản website'] }}\n<hr>\n<h3>Bản Zalo:</h3>\n<pre>{{ $('IF - Approved and Not Posted').item.json['Bản Zalo'] }}</pre>\n<hr>\n<h3>Bản Facebook:</h3>\n<pre>{{ $('IF - Approved and Not Posted').item.json['Bản Facebook'] }}</pre>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3. Vui lòng đăng nội dung trên lên website và đánh dấu \"Đã đăng\" trong bảng tính.</em></p>",
+        "html": "=<h2>Nội dung cần đăng lên website</h2>\n<p><strong>Mục:</strong> {{ $('IF - Approved and Not Posted').item.json.tab }} (hàng {{ $('IF - Approved and Not Posted').item.json.row_number }})</p>\n<p><strong>Ngày:</strong> {{ $('IF - Approved and Not Posted').item.json['Ngày'] }}</p>\n<p><strong>Người duyệt:</strong> {{ $('IF - Approved and Not Posted').item.json['Người duyệt'] }}</p>\n<p><strong>Thời điểm duyệt:</strong> {{ $('IF - Approved and Not Posted').item.json['Thời điểm duyệt'] }}</p>\n<hr>\n<h3>Bản website (copy & paste vào CMS):</h3>\n{{ $('IF - Approved and Not Posted').item.json['Bản website'] }}\n<hr>\n<h3>Bản Zalo:</h3>\n<pre>{{ $('IF - Approved and Not Posted').item.json['Bản Zalo'] }}</pre>\n<hr>\n<h3>Bản Facebook:</h3>\n<pre>{{ $('IF - Approved and Not Posted').item.json['Bản Facebook'] }}</pre>\n<hr>\n<p><em>Email tự động từ hệ thống website. Vui lòng đăng nội dung trên lên website và đánh dấu \"Đã đăng\" trong bảng tính.</em></p>",
         "options": {
           "appendAttribution": false
         }
@@ -283,7 +350,7 @@
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1400,
+        1600,
         460
       ],
       "credentials": {
@@ -304,22 +371,58 @@
               "type": "string"
             },
             {
-              "id": "set-published-manual",
-              "name": "da_dang",
-              "value": "TRUE",
-              "type": "string"
-            },
-            {
               "id": "set-method-manual",
               "name": "publish_method",
               "value": "Email to poster",
               "type": "string"
             },
             {
-              "id": "set-row-number-manual",
+              "id": "99fbfd85-e004-5162-aaf3-5a17d4af130d",
+              "name": "tab",
+              "value": "={{ $('IF - Approved and Not Posted').item.json.tab }}",
+              "type": "string"
+            },
+            {
+              "id": "ebe8193b-0060-590f-a302-73ffe35e2030",
               "name": "row_number",
-              "value": "={{ $(\"Sheets Trigger - Approval Changed\").item.json.row_number }}",
+              "value": "={{ $('IF - Approved and Not Posted').item.json.row_number }}",
               "type": "number"
+            },
+            {
+              "id": "ca39f616-f66f-551a-9bf7-c08cb01a4fae",
+              "name": "ngay",
+              "value": "={{ $('IF - Approved and Not Posted').item.json['Ngày'] }}",
+              "type": "string"
+            },
+            {
+              "id": "ae313c10-7e7c-5f8d-a326-d3af0f3321f1",
+              "name": "approved_by",
+              "value": "={{ $('IF - Approved and Not Posted').item.json['Người duyệt'] }}",
+              "type": "string"
+            },
+            {
+              "id": "033e1962-5e32-5709-a447-4a1337cc5a72",
+              "name": "approved_at",
+              "value": "={{ $('IF - Approved and Not Posted').item.json['Thời điểm duyệt'] }}",
+              "type": "string"
+            },
+            {
+              "id": "d9e9fbe6-5d41-5afc-b37b-0e13bafec0e0",
+              "name": "cell_posted",
+              "value": "={{ $('IF - Approved and Not Posted').item.json.cell_posted }}",
+              "type": "string"
+            },
+            {
+              "id": "6e64d598-6e49-5674-9b41-e561aceb126d",
+              "name": "cell_url",
+              "value": "={{ $('IF - Approved and Not Posted').item.json.cell_url }}",
+              "type": "string"
+            },
+            {
+              "id": "dc89998c-681a-5338-9d9d-19a601dfbb64",
+              "name": "cell_note",
+              "value": "={{ $('IF - Approved and Not Posted').item.json.cell_note }}",
+              "type": "string"
             }
           ]
         },
@@ -330,17 +433,17 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1640,
+        1840,
         460
       ]
     },
     {
       "parameters": {
-        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
-        "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') || 'admin@victoria.edu.vn' }}",
+        "fromEmail": "={{ $('Read Config').first().json.SMTP_FROM }}",
+        "toEmail": "={{ $('Read Config').first().json.ADMIN_EMAIL }}",
         "subject": "=[LỖI] Không thể đăng bài tự động - {{ $('IF - Approved and Not Posted').item.json['Ngày'] }}",
         "emailFormat": "html",
-        "html": "=<h2>⚠️ Lỗi đăng bài tự động</h2>\n<p>WordPress API trả về lỗi. Nội dung đã được gửi qua email cho người đăng bài.</p>\n<p><strong>Ngày:</strong> {{ $('IF - Approved and Not Posted').item.json['Ngày'] }}</p>\n<p><strong>Chi tiết lỗi:</strong> {{ $json.error?.message || 'Unknown error' }}</p>\n<p><em>Vui lòng kiểm tra kết nối WordPress API.</em></p>",
+        "html": "=<h2>⚠️ Lỗi đăng bài tự động</h2>\n<p>WordPress API trả về lỗi. Nội dung đã được gửi qua email cho người đăng bài.</p>\n<p><strong>Mục:</strong> {{ $('IF - Approved and Not Posted').item.json.tab }} (hàng {{ $('IF - Approved and Not Posted').item.json.row_number }})</p>\n<p><strong>Ngày:</strong> {{ $('IF - Approved and Not Posted').item.json['Ngày'] }}</p>\n<p><strong>Chi tiết lỗi:</strong> {{ $json.error?.message || 'Unknown error' }}</p>\n<p><em>Vui lòng kiểm tra kết nối WordPress API.</em></p>",
         "options": {
           "appendAttribution": false
         }
@@ -350,7 +453,7 @@
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1640,
+        1840,
         300
       ],
       "credentials": {
@@ -361,77 +464,48 @@
       }
     },
     {
-      "parameters": {
-        "operation": "update",
-        "documentId": {
-          "__rl": true,
-          "value": "[YOUR_GOOGLE_SHEET_ID]",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "gid=0",
-          "mode": "id",
-          "cachedResultName": "Thực đơn"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Đã đăng": "={{ $json.da_dang }}",
-            "URL bài đăng": "={{ $json.post_url }}",
-            "Ghi chú": "={{ $json.publish_method }} - {{ $now.toISO() }}",
-            "row_number": "={{ $json.row_number }}"
-          },
-          "matchingColumns": [
-            "row_number"
-          ],
-          "schema": [
-            {
-              "id": "Đã đăng",
-              "displayName": "Đã đăng",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "URL bài đăng",
-              "displayName": "URL bài đăng",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Ghi chú",
-              "displayName": "Ghi chú",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "row_number",
-              "displayName": "row_number",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "d1000001-0001-4000-8000-000000000009",
-      "name": "Update Sheet - Mark Published",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "parameters": {},
+      "id": "d1000001-0001-4000-8000-000000000010",
+      "name": "No Op - Skip",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
       "position": [
-        1900,
+        1360,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared helpers (same block in every multi-tab Code node) ----\nconst noAcc = (s) => String(s ?? '').normalize('NFC').replace(/đ/g, 'd').replace(/Đ/g, 'D')\n  .normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');\nconst low = (s) => noAcc(s).toLowerCase().trim();\nconst truthy = (v) => v === true || ['TRUE', 'CO', 'X', '1'].includes(noAcc(v).trim().toUpperCase());\nconst TAB_CODES = { 'thuc don': 'td', 'thong bao': 'tb', 'lich/tkb': 'lich', 'lich': 'lich', 'tin hoat dong': 'tin' };\nconst TAB_EMOJI = { td: '🍽️', tb: '📢', lich: '📅', tin: '🌟' };\nconst tabCode = (tab) => TAB_CODES[low(tab)] || low(tab).replace(/[^a-z0-9]+/g, '');\nconst parseTabs = (v) => String(v || 'Thực đơn').split(',').map((t) => t.trim()).filter(Boolean);\nconst colLetter = (i) => { let s = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };\nconst qTab = (tab) => `'${String(tab).replace(/'/g, \"''\")}'`;\nconst batchQuery = (tabs) => tabs.map((t) => 'ranges=' + encodeURIComponent(`${qTab(t)}!A1:Z`)).join('&');\n// valueRange -> { cols: {header: letter}, rows: [{...header: value, row_number}] }\nconst readTab = (vr) => {\n  const values = (vr && vr.values) || [];\n  const header = (values[0] || []).map((h) => String(h ?? '').trim());\n  const cols = {};\n  header.forEach((h, i) => { if (h) cols[h] = colLetter(i); });\n  const rows = values.slice(1).map((r, i) => {\n    const o = { row_number: i + 2 };\n    header.forEach((h, j) => { if (h) o[h] = r[j] ?? ''; });\n    return o;\n  });\n  return { cols, rows };\n};\nconst cell = (tab, cols, header, row) => {\n  if (!cols[header]) throw new Error(`Tab \"${tab}\" thiếu cột \"${header}\"`);\n  return `${qTab(tab)}!${cols[header]}${row}`;\n};\nconst PHONE = /(?:\\+?84|0)(?:\\d[\\s.-]?){8,10}\\d/;\nconst nowVN = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');\nconst todayVN = () => new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' });\n// ---- end shared helpers ----\n\n// Mark every row published in this run, in one batchUpdate, and keep the audit rows.\nconst data = [], audit = [];\nconst stamp = nowVN();\nfor (const { json: r } of $input.all()) {\n  data.push({ range: r.cell_posted, values: [[true]] });\n  data.push({ range: r.cell_url, values: [[r.post_url]] });\n  data.push({ range: r.cell_note, values: [[`${r.publish_method} - ${stamp}`]] });\n  audit.push({ Timestamp: stamp, Tab: r.tab, Row: r.row_number, 'Content date': r.ngay, 'Approved by': r.approved_by,\n    'Approved at': r.approved_at, Method: r.publish_method, 'Post URL': r.post_url, Result: 'SUCCESS' });\n}\nreturn data.length ? [{ json: { data, audit } }] : [];\n"
+      },
+      "id": "e75304cb-d8dd-5174-97ad-dc9afa6fe5e5",
+      "name": "Gom đánh dấu đã đăng",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/[YOUR_GOOGLE_SHEET_ID]/values:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ valueInputOption: 'RAW', data: $json.data }) }}"
+      },
+      "id": "b0098de7-92b8-5f75-b844-b531989c2f13",
+      "name": "Update Sheet - Mark Published",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2300,
         340
       ],
       "credentials": {
@@ -442,14 +516,16 @@
       }
     },
     {
-      "parameters": {},
-      "id": "d1000001-0001-4000-8000-000000000010",
-      "name": "No Op - Skip",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "parameters": {
+        "jsCode": "// The write-back succeeded (an HTTP error would have stopped the run): one Audit Log row per post.\nreturn $('Gom đánh dấu đã đăng').first().json.audit.map((a) => ({ json: a }));\n"
+      },
+      "id": "156689cc-d49b-5359-89a6-ed47d7c41edd",
+      "name": "Dòng nhật ký",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        1160,
-        560
+        2520,
+        340
       ]
     },
     {
@@ -468,15 +544,15 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "Timestamp": "={{ $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss') }}",
-            "Tab": "Thực đơn",
-            "Row": "={{ $json.row_number }}",
-            "Content date": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Ng\\u00e0y\"] || '' }}",
-            "Approved by": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Ng\\u01b0\\u1eddi duy\\u1ec7t\"] || '' }}",
-            "Approved at": "={{ $('Sheets Trigger - Approval Changed').item.json[\"Th\\u1eddi \\u0111i\\u1ec3m duy\\u1ec7t\"] || '' }}",
-            "Method": "={{ $json.publish_method || String($json['Ghi chú'] || '').split(' - ')[0] }}",
-            "Post URL": "={{ $json.post_url || $json['URL bài đăng'] || '' }}",
-            "Result": "SUCCESS"
+            "Timestamp": "={{ $json[\"Timestamp\"] }}",
+            "Tab": "={{ $json[\"Tab\"] }}",
+            "Row": "={{ $json[\"Row\"] }}",
+            "Content date": "={{ $json[\"Content date\"] }}",
+            "Approved by": "={{ $json[\"Approved by\"] }}",
+            "Approved at": "={{ $json[\"Approved at\"] }}",
+            "Method": "={{ $json[\"Method\"] }}",
+            "Post URL": "={{ $json[\"Post URL\"] }}",
+            "Result": "={{ $json[\"Result\"] }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -563,14 +639,16 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "cellFormat": "RAW"
+        }
       },
       "id": "d1000001-0001-4000-8000-000000000013",
       "name": "Append Audit Log",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2140,
+        2740,
         340
       ],
       "notesInFlow": true,
@@ -584,11 +662,55 @@
     }
   ],
   "connections": {
-    "Sheets Trigger - Approval Changed": {
+    "Lịch - mỗi 2 phút": {
       "main": [
         [
           {
             "node": "Read Config Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config Sheet": {
+      "main": [
+        [
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "Đọc các tab nội dung",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc các tab nội dung": {
+      "main": [
+        [
+          {
+            "node": "Chọn hàng đã duyệt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chọn hàng đã duyệt": {
+      "main": [
+        [
+          {
+            "node": "IF - Approved and Not Posted",
             "type": "main",
             "index": 0
           }
@@ -656,44 +778,11 @@
         ]
       ]
     },
-    "Set - WordPress Success": {
+    "Email - WP Error Alert": {
       "main": [
         [
           {
-            "node": "Update Sheet - Mark Published",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Set - Manual Success": {
-      "main": [
-        [
-          {
-            "node": "Update Sheet - Mark Published",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Read Config Sheet": {
-      "main": [
-        [
-          {
-            "node": "Read Config",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Read Config": {
-      "main": [
-        [
-          {
-            "node": "IF - Approved and Not Posted",
+            "node": "Email - Manual Publish",
             "type": "main",
             "index": 0
           }
@@ -711,11 +800,33 @@
         ]
       ]
     },
-    "Email - WP Error Alert": {
+    "Set - WordPress Success": {
       "main": [
         [
           {
-            "node": "Email - Manual Publish",
+            "node": "Gom đánh dấu đã đăng",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Manual Success": {
+      "main": [
+        [
+          {
+            "node": "Gom đánh dấu đã đăng",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gom đánh dấu đã đăng": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet - Mark Published",
             "type": "main",
             "index": 0
           }
@@ -726,6 +837,17 @@
       "main": [
         [
           {
+            "node": "Dòng nhật ký",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dòng nhật ký": {
+      "main": [
+        [
+          {
             "node": "Append Audit Log",
             "type": "main",
             "index": 0
@@ -733,26 +855,5 @@
         ]
       ]
     }
-  },
-  "active": false,
-  "settings": {
-    "executionOrder": "v1",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner",
-    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
-  },
-  "versionId": "d-publish-v1",
-  "meta": {
-    "templateCredsSetupCompleted": false,
-    "instanceId": ""
-  },
-  "tags": [
-    {
-      "name": "victoria-tl3"
-    },
-    {
-      "name": "publishing"
-    }
-  ],
-  "pinData": {}
+  }
 }

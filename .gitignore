@@ -110,3 +110,7 @@ victoria-group-apis-criteria.md
 # ---------------------------------------------------------------------------
 *.md
 !/README.md
+
+# Generated per-campus workflow imports and campus registry (contain credential IDs / Sheet IDs)
+infra/import/
+infra/campuses.json

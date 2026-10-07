@@ -49,9 +49,10 @@ whole pipeline is readable in one place, and work can continue by hand if automa
 
 | File | Purpose |
 |---|---|
-| `workflow-c-drafting-agent` | Drafts website / Zalo / Facebook versions from a Sheet row (local model, hosted fallback) |
-| `workflow-d-auto-publish` | Publishes rows a human approved; records the result |
-| `workflow-e-thursday-reminder` | Reminds staff about missing content before the deadline |
+| `workflow-c-drafting-agent` | Drafts website / Zalo / Facebook versions for every content tab (menu, notices, schedule, news), with the campus name from Config (local model, hosted fallback) |
+| `workflow-d-auto-publish` | Publishes rows a human approved, from every content tab; records the result |
+| `workflow-e-thursday-reminder` | Reminds each responsible staff member (email or Zalo, from the staff tab) about missing menus |
+| `workflow-i-email-intake` | Staff email intake: files content into the right tab, or replies with a summary of an attached PDF. Unknown senders get no reply |
 | `workflow-f-feature-tracker` | Tracks feature / task status |
 | `workflow-g-compliance-monitor` | Checks that required public pages are live and contain the right content |
 | `workflow-h-global-error` | Catches failures from other workflows and alerts a person |
@@ -84,16 +85,25 @@ Running cost is close to zero: local models plus free tiers.
 ```bash
 git clone --recurse-submodules https://github.com/DD134345/n8n-school-ops.git
 cd n8n-school-ops/infra
-cp .env.example .env        # fill in your own values; never commit .env
+cp .env.example .env        # WIN_HOST_IP, VM_IP, passwords; never commit .env
 docker compose up -d        # n8n on http://<VM_IP>:5678
 ```
 
-Ollama is not in the Compose stack: run it on the host (`ollama pull qwen2.5:7b`) and set
-`WIN_HOST_IP` in `.env` so n8n can reach it at `http://winhost:11434`. On a single Linux machine,
-point the same variable at the host's IP.
+1. **Ollama** is not in the Compose stack: run it on the host (`ollama pull qwen2.5:7b`) with
+   `OLLAMA_HOST=0.0.0.0:11434`, and allow TCP 11434 in the firewall from the VM subnet only. n8n
+   reaches it at `http://winhost:11434`.
+2. **Credentials**: create them in n8n from a browser where `localhost:5678` reaches n8n (the VM's
+   own browser, or a port-forward). Google refuses plain-http OAuth redirects to private IPs.
+3. **Build per-campus workflows**: copy `infra/campuses.example.json` to `infra/campuses.json`, fill in
+   each campus's Sheet ID and the credential IDs, then run `node scripts/build-workflows.mjs`. It writes
+   `infra/import/<CODE>/` with every placeholder filled, names prefixed `[CODE]`, and prints the
+   `EXPECTED_WORKFLOWS` value for that campus's Config tab. It stops if anything is left unfilled.
+4. **Import**: `docker compose exec n8n n8n import:workflow --separate --input=/import/<CODE>`.
+5. **Zalo**: one bot per campus; put `ZALO_BOT_TOKEN_<CODE>=...` in `infra/zalo.env`.
 
-Import the files from `workflows/` (or `workflows/en/`) in the n8n editor. All workflows ship
-inactive; configure credentials and the Sheet's Config tab first.
+All workflows ship inactive. Fill each campus Sheet's `Config` and `Nhân sự` tabs first
+(`docs/REFERENCE.md`). `workflows/` (Vietnamese) is canonical; `workflows/en/` only mirrors the
+core fixes.
 
 Website:
 

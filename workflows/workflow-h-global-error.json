@@ -67,7 +67,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const err = $('Error Trigger').first().json;\nreturn [{\n  json: {\n    Timestamp: $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss'),\n    Workflow: err.workflow?.name || 'Unknown',\n    Status: 'ERROR',\n    'Last Run': $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss'),\n    Details: [\n      err.execution?.lastNodeExecuted ? 'Node: ' + err.execution.lastNodeExecuted : null,\n      err.execution?.error?.message || null,\n      err.execution?.url || null,\n    ].filter(Boolean).join(' | '),\n  },\n}];\n"
+        "jsCode": "const err = $('Error Trigger').first().json;\nconst cfg = $('Read Config').first().json;\nconst mailOk = Boolean(String(cfg.ADMIN_EMAIL || '').trim() && String(cfg.SMTP_FROM || '').trim());\nreturn [{\n  json: {\n    Timestamp: $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss'),\n    Workflow: err.workflow?.name || 'Unknown',\n    Status: 'ERROR',\n    mail_ok: mailOk,\n    'Last Run': $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss'),\n    Details: [\n      err.execution?.lastNodeExecuted ? 'Node: ' + err.execution.lastNodeExecuted : null,\n      err.execution?.error?.message || null,\n      err.execution?.url || null,\n      mailOk ? null : 'Thiếu ADMIN_EMAIL/SMTP_FROM trong Config - chưa gửi được email',\n    ].filter(Boolean).join(' | '),\n  },\n}];\n"
       },
       "id": "h1000001-0001-4000-8000-000000000004",
       "name": "Build Failure Row",
@@ -173,8 +173,8 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') }}",
-        "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') }}",
+        "fromEmail": "={{ $('Read Config').first().json.SMTP_FROM }}",
+        "toEmail": "={{ $('Read Config').first().json.ADMIN_EMAIL }}",
         "subject": "=[LỖI] {{ $('Error Trigger').first().json.workflow?.name || 'Workflow không rõ' }} — Victoria TL3",
         "emailFormat": "html",
         "html": "=<h2>❌ Workflow thất bại</h2>\n<p><strong>Workflow:</strong> {{ $('Error Trigger').first().json.workflow?.name || '?' }}</p>\n<p><strong>Node lỗi:</strong> {{ $('Error Trigger').first().json.execution?.lastNodeExecuted || '?' }}</p>\n<p><strong>Thời gian:</strong> {{ $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm') }}</p>\n<p><strong>Thông báo lỗi:</strong></p>\n<pre>{{ $('Error Trigger').first().json.execution?.error?.message || 'Không có chi tiết' }}</pre>\n<p><a href=\"{{ $('Error Trigger').first().json.execution?.url || '#' }}\">Mở lần chạy trong n8n</a></p>\n<hr>\n<p><em>Gửi tự động bởi H - Global Error Handler. Không có nội dung nào được đăng do lỗi này.</em></p>",
@@ -187,8 +187,8 @@
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1400,
-        340
+        1640,
+        240
       ],
       "notesInFlow": true,
       "notes": "Báo cho quản trị viên. Đây là bước cuối — nếu SMTP hỏng, dòng System Health vẫn còn.",
@@ -198,6 +198,50 @@
           "name": "Victoria School SMTP"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "de254e21-653b-57e4-af4c-0e92606c81f5",
+              "leftValue": "={{ $('Build Failure Row').first().json.mail_ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "55191909-94f5-5fdf-b811-0ce6d633352f",
+      "name": "IF - Có địa chỉ email",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        340
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "8db69bc9-a6be-585a-877e-13a71db0842c",
+      "name": "No Op - Không gửi email",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        440
+      ]
     }
   ],
   "connections": {
@@ -249,7 +293,25 @@
       "main": [
         [
           {
+            "node": "IF - Có địa chỉ email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Có địa chỉ email": {
+      "main": [
+        [
+          {
             "node": "Email - Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Op - Không gửi email",
             "type": "main",
             "index": 0
           }

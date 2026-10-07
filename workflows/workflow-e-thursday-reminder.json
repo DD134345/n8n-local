@@ -61,7 +61,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nreturn [{ json: cfg }];\n"
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nconst missing = [\"SMTP_FROM\", \"HIEU_TRUONG_EMAIL\"].filter((k) => !String(cfg[k] ?? '').trim());\nif (missing.length) throw new Error('Config tab thiếu khoá: ' + missing.join(', '));\nreturn [{ json: cfg }];\n"
       },
       "id": "e1000001-0001-4000-8000-000000000015",
       "name": "Read Config",
@@ -168,11 +168,11 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
-        "toEmail": "={{ ($('Read Config')?.first()?.json?.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn') || 'bantru@victoria.edu.vn' }}",
-        "subject": "=[NHẮC NHỞ] Thực đơn tuần này chưa đầy đủ - Victoria TL3",
+        "fromEmail": "={{ $('Read Config').first().json.SMTP_FROM }}",
+        "toEmail": "={{ $json.to }}",
+        "subject": "=[NHẮC NHỞ] Thực đơn tuần này chưa đầy đủ - {{ $('Read Config').first().json.SCHOOL_NAME || '' }}",
         "emailFormat": "html",
-        "html": "=<h2>📋 Nhắc nhở nhập thực đơn</h2>\n<p>Xin chào,</p>\n<p>Hệ thống kiểm tra thấy thực đơn tuần này <strong>chưa đầy đủ</strong>.</p>\n<p><strong>{{ $json.summary }}</strong></p>\n<h3>Ngày thiếu:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Vui lòng cập nhật thực đơn vào <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit\">bảng dữ liệu</a> trước cuối ngày hôm nay.</p>\n<p><em>Nếu không cập nhật trước 12:00 thứ Sáu, hệ thống sẽ thông báo đến Hiệu trưởng.</em></p>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3.</em></p>",
+        "html": "=<h2>📋 Nhắc nhở nhập thực đơn</h2>\n<p>Chào {{ $json.name }},</p>\n<p>Hệ thống kiểm tra thấy thực đơn tuần này <strong>chưa đầy đủ</strong>.</p>\n<p><strong>{{ $json.summary }}</strong></p>\n<h3>Ngày thiếu:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Vui lòng cập nhật thực đơn vào <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit\">bảng dữ liệu</a> trước cuối ngày hôm nay.</p>\n<p><em>Nếu không cập nhật trước 12:00 thứ Sáu, hệ thống sẽ thông báo đến Hiệu trưởng.</em></p>\n<hr>\n<p><em>Email tự động từ hệ thống {{ $('Read Config').first().json.SCHOOL_NAME || '' }}.</em></p>",
         "options": {
           "appendAttribution": false
         }
@@ -182,8 +182,8 @@
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1880,
-        240
+        2560,
+        40
       ],
       "credentials": {
         "smtp": {
@@ -202,8 +202,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2120,
-        240
+        1880,
+        560
       ],
       "webhookId": "e-wait-friday"
     },
@@ -230,8 +230,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2360,
-        240
+        2120,
+        560
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -249,8 +249,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2600,
-        240
+        2360,
+        560
       ]
     },
     {
@@ -282,18 +282,18 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        2820,
-        240
+        2600,
+        560
       ]
     },
     {
       "parameters": {
-        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
-        "toEmail": "={{ ($('Read Config')?.first()?.json?.HIEU_TRUONG_EMAIL || 'hieutruong@victoria.edu.vn') || 'hieutruong@victoria.edu.vn' }}",
-        "ccEmail": "={{ ($('Read Config')?.first()?.json?.BAN_TRU_EMAIL || 'bantru@victoria.edu.vn') || 'bantru@victoria.edu.vn' }}",
-        "subject": "=[KHẨN] Thực đơn tuần này vẫn chưa được cập nhật - Victoria TL3",
+        "fromEmail": "={{ $('Read Config').first().json.SMTP_FROM }}",
+        "toEmail": "={{ $('Read Config').first().json.HIEU_TRUONG_EMAIL }}",
+        "ccEmail": "={{ $('Read Config').first().json.BAN_TRU_EMAIL }}",
+        "subject": "=[KHẨN] Thực đơn tuần này vẫn chưa được cập nhật - {{ $('Read Config').first().json.SCHOOL_NAME || '' }}",
         "emailFormat": "html",
-        "html": "=<h2>🚨 Cảnh báo: Thực đơn chưa được cập nhật</h2>\n<p>Kính gửi Hiệu trưởng,</p>\n<p>Sau khi nhắc nhở vào thứ Năm, thực đơn tuần này <strong>vẫn chưa được cập nhật đầy đủ</strong>.</p>\n<h3>Ngày còn thiếu:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Theo quy trình TT 09/2024, thực đơn cần được công khai trên website trường. Vui lòng phối hợp với bộ phận bán trú để hoàn tất.</p>\n<hr>\n<p><em>Email tự động từ hệ thống Victoria TL3. Bộ phận bán trú đã được CC.</em></p>",
+        "html": "=<h2>🚨 Cảnh báo: Thực đơn chưa được cập nhật</h2>\n<p>Kính gửi Hiệu trưởng,</p>\n<p>Sau khi nhắc nhở vào thứ Năm, thực đơn tuần này <strong>vẫn chưa được cập nhật đầy đủ</strong>.</p>\n<h3>Ngày còn thiếu:</h3>\n<ul>\n{{ $json.missing_days.map(d => '<li>' + d + '</li>').join('\\n') }}\n</ul>\n<p>Theo quy trình TT 09/2024, thực đơn cần được công khai trên website trường. Vui lòng phối hợp với bộ phận bán trú để hoàn tất.</p>\n<hr>\n<p><em>Email tự động từ hệ thống {{ $('Read Config').first().json.SCHOOL_NAME || '' }}. Bộ phận bán trú đã được CC.</em></p>",
         "options": {
           "appendAttribution": false
         }
@@ -303,8 +303,8 @@
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        3060,
-        140
+        2840,
+        460
       ],
       "credentials": {
         "smtp": {
@@ -321,7 +321,7 @@
       "typeVersion": 1,
       "position": [
         1880,
-        460
+        760
       ]
     },
     {
@@ -331,9 +331,227 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        3060,
-        360
+        2840,
+        660
       ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Nhân sự",
+          "mode": "name",
+          "cachedResultName": "Nhân sự"
+        },
+        "options": {}
+      },
+      "id": "5d59bd8b-79db-5c97-8f70-a5ab69d52af0",
+      "name": "Đọc Nhân sự",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1880,
+        160
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared helpers (same block in every multi-tab Code node) ----\nconst noAcc = (s) => String(s ?? '').normalize('NFC').replace(/đ/g, 'd').replace(/Đ/g, 'D')\n  .normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');\nconst low = (s) => noAcc(s).toLowerCase().trim();\nconst truthy = (v) => v === true || ['TRUE', 'CO', 'X', '1'].includes(noAcc(v).trim().toUpperCase());\nconst TAB_CODES = { 'thuc don': 'td', 'thong bao': 'tb', 'lich/tkb': 'lich', 'lich': 'lich', 'tin hoat dong': 'tin' };\nconst TAB_EMOJI = { td: '🍽️', tb: '📢', lich: '📅', tin: '🌟' };\nconst tabCode = (tab) => TAB_CODES[low(tab)] || low(tab).replace(/[^a-z0-9]+/g, '');\nconst parseTabs = (v) => String(v || 'Thực đơn').split(',').map((t) => t.trim()).filter(Boolean);\nconst colLetter = (i) => { let s = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };\nconst qTab = (tab) => `'${String(tab).replace(/'/g, \"''\")}'`;\nconst batchQuery = (tabs) => tabs.map((t) => 'ranges=' + encodeURIComponent(`${qTab(t)}!A1:Z`)).join('&');\n// valueRange -> { cols: {header: letter}, rows: [{...header: value, row_number}] }\nconst readTab = (vr) => {\n  const values = (vr && vr.values) || [];\n  const header = (values[0] || []).map((h) => String(h ?? '').trim());\n  const cols = {};\n  header.forEach((h, i) => { if (h) cols[h] = colLetter(i); });\n  const rows = values.slice(1).map((r, i) => {\n    const o = { row_number: i + 2 };\n    header.forEach((h, j) => { if (h) o[h] = r[j] ?? ''; });\n    return o;\n  });\n  return { cols, rows };\n};\nconst cell = (tab, cols, header, row) => {\n  if (!cols[header]) throw new Error(`Tab \"${tab}\" thiếu cột \"${header}\"`);\n  return `${qTab(tab)}!${cols[header]}${row}`;\n};\nconst PHONE = /(?:\\+?84|0)(?:\\d[\\s.-]?){8,10}\\d/;\nconst nowVN = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');\nconst todayVN = () => new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' });\n// ---- end shared helpers ----\n\n// One reminder per responsible person, on the channel they chose in tab \"Nhân sự\".\nconst active = (v) => !['false', 'khong', 'no', '0', 'ngung'].includes(low(v));\nconst check = $('Check Missing Menus').first().json;\nconst cfg = $('Read Config').first().json;\nconst out = [], skipped = [];\nfor (const { json: j } of $('Đọc Nhân sự').all()) {\n  const name = String(j['Họ tên'] ?? '').trim();\n  if (!name || !active(j['Đang dùng'])) continue;\n  if (!low(j['Vai trò']).includes('nhap')) continue;\n  const kinds = String(j['Loại nội dung'] ?? '').split(',').map((s) => tabCode(s)).filter(Boolean);\n  if (kinds.length && !kinds.includes('td')) continue;\n  if (['khong', 'no', 'false', '0'].includes(low(j['Nhắc việc']))) continue;\n  const email = String(j['Email'] ?? '').trim();\n  const chat = String(j['Zalo chat ID'] || j['Zalo ID'] || '').trim();\n  const k = low(j['Kênh nhận']);\n  const channels = k.includes('ca hai') ? ['email', 'zalo'] : k.includes('zalo') ? ['zalo'] : k.includes('email') ? ['email'] : [email ? 'email' : 'zalo'];\n  const text = `Chào ${name},\\n${check.summary}.\\nNgày còn thiếu: ${check.missing_days.join(', ')}.\\nVui lòng nhập thực đơn vào bảng tính (hoặc nhắn bot: thực đơn dd/mm: ...) trước cuối ngày hôm nay.`;\n  for (const ch of channels) {\n    if (ch === 'email' && email) out.push({ json: { channel: 'email', to: email, name, text, summary: check.summary, missing_days: check.missing_days } });\n    else if (ch === 'zalo' && chat) out.push({ json: { channel: 'zalo', chat_id: chat, name, text } });\n    else skipped.push(`${name} (${ch})`);\n  }\n}\nif (!out.length) {\n  if (!String(cfg.BAN_TRU_EMAIL || '').trim()) throw new Error('Không có người nhận nhắc thực đơn: thêm người ở tab Nhân sự hoặc BAN_TRU_EMAIL ở Config');\n  out.push({ json: { channel: 'email', to: String(cfg.BAN_TRU_EMAIL).trim(), name: 'bộ phận bán trú', text: '', summary: check.summary, missing_days: check.missing_days } });\n}\n// People with no usable address are listed on every item so the run shows them.\nreturn out.map((o) => ({ json: { ...o.json, skipped } }));\n"
+      },
+      "id": "a921d02f-c9e8-535b-bc8c-eff6850e9ca6",
+      "name": "Chọn người nhắc",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.channel }}",
+                    "rightValue": "email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "email"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.channel }}",
+                    "rightValue": "zalo",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "zalo"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b697090f-1f4b-5e3c-b550-e096cfff8760",
+      "name": "Theo kênh",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2320,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://bot-api.zaloplatforms.com/bot{{ $env.ZALO_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: String($json.chat_id), text: String($json.text || \"\").slice(0, 2000) }) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "5944d825-a7e2-50d3-ad69-d5a020d3213b",
+      "name": "Zalo - Nhắc thực đơn",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2560,
+        260
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "System Health",
+          "mode": "name",
+          "cachedResultName": "System Health"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss') }}",
+            "Workflow": "E - Nhắc thực đơn",
+            "Status": "ERROR",
+            "Last Run": "",
+            "Details": "={{ 'Không gửi được Zalo nhắc thực đơn cho ' + $('Chọn người nhắc').item.json.name + ': ' + ($json.error?.message || JSON.stringify($json).slice(0, 200)) }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Workflow",
+              "displayName": "Workflow",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Last Run",
+              "displayName": "Last Run",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Details",
+              "displayName": "Details",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "ee98bc5e-9396-5917-9964-f21f86feb370",
+      "name": "Ghi lỗi gửi Zalo",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2800,
+        340
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
     }
   ],
   "connections": {
@@ -385,7 +603,12 @@
       "main": [
         [
           {
-            "node": "Email - Thursday Reminder",
+            "node": "Đọc Nhân sự",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait - Until Friday Noon",
             "type": "main",
             "index": 0
           }
@@ -472,11 +695,52 @@
         ]
       ]
     },
-    "Email - Thursday Reminder": {
+    "Đọc Nhân sự": {
       "main": [
         [
           {
-            "node": "Wait - Until Friday Noon",
+            "node": "Chọn người nhắc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chọn người nhắc": {
+      "main": [
+        [
+          {
+            "node": "Theo kênh",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Theo kênh": {
+      "main": [
+        [
+          {
+            "node": "Email - Thursday Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Zalo - Nhắc thực đơn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zalo - Nhắc thực đơn": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Ghi lỗi gửi Zalo",
             "type": "main",
             "index": 0
           }

@@ -92,11 +92,11 @@
     },
     {
       "parameters": {
-        "model": "qwen2.5:7b",
-        "baseUrl": "http://ollama:11434",
+        "model": "qwen3.5:9b",
+        "baseUrl": "http://winhost:11434",
         "options": {
           "temperature": 0.7,
-          "numCtx": 4096
+          "numCtx": 8192
         }
       },
       "id": "c1000001-0001-4000-8000-000000000004",
@@ -133,10 +133,9 @@
     },
     {
       "parameters": {
-        "modelName": "models/gemini-3.5-flash",
+        "modelName": "models/gemini-3.8-flash",
         "options": {
-          "temperature": 0.7,
-          "maxOutputTokens": 2048
+          "maxOutputTokens": 8192
         }
       },
       "id": "c1000001-0001-4000-8000-000000000006",
@@ -149,7 +148,7 @@
       ],
       "credentials": {
         "googleGeminiApi": {
-          "id": "CREDENTIAL_ID_GEMINI",
+          "id": "[YOUR_GEMINI_CREDENTIAL_ID]",
           "name": "Gemini API Free"
         }
       }

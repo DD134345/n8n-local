@@ -1,0 +1,589 @@
+{
+  "name": "I - Tiếp nhận email từ nhân viên",
+  "nodes": [
+    {
+      "parameters": {
+        "mailbox": "INBOX",
+        "postProcessAction": "read",
+        "downloadAttachments": true,
+        "format": "resolved",
+        "options": {}
+      },
+      "id": "6f2cf36b-a29a-559a-98cb-fa9aee41f860",
+      "name": "Email Trigger (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "credentials": {
+        "imap": {
+          "id": "[YOUR_IMAP_CREDENTIAL_ID]",
+          "name": "Hộp thư tiếp nhận (IMAP)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "name",
+          "cachedResultName": "Config"
+        },
+        "options": {}
+      },
+      "id": "957df274-eb3b-5931-93cd-e1859574f2c1",
+      "name": "Read Config Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        220,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Nhân sự",
+          "mode": "name",
+          "cachedResultName": "Nhân sự"
+        },
+        "options": {}
+      },
+      "id": "9744885a-13c6-58f7-9250-11ff1d0939fd",
+      "name": "Đọc Nhân sự",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared helpers (same block in every multi-tab Code node) ----\nconst noAcc = (s) => String(s ?? '').normalize('NFC').replace(/đ/g, 'd').replace(/Đ/g, 'D')\n  .normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');\nconst low = (s) => noAcc(s).toLowerCase().trim();\nconst truthy = (v) => v === true || ['TRUE', 'CO', 'X', '1'].includes(noAcc(v).trim().toUpperCase());\nconst TAB_CODES = { 'thuc don': 'td', 'thong bao': 'tb', 'lich/tkb': 'lich', 'lich': 'lich', 'tin hoat dong': 'tin' };\nconst TAB_EMOJI = { td: '🍽️', tb: '📢', lich: '📅', tin: '🌟' };\nconst tabCode = (tab) => TAB_CODES[low(tab)] || low(tab).replace(/[^a-z0-9]+/g, '');\nconst parseTabs = (v) => String(v || 'Thực đơn').split(',').map((t) => t.trim()).filter(Boolean);\nconst colLetter = (i) => { let s = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };\nconst qTab = (tab) => `'${String(tab).replace(/'/g, \"''\")}'`;\nconst batchQuery = (tabs) => tabs.map((t) => 'ranges=' + encodeURIComponent(`${qTab(t)}!A1:Z`)).join('&');\n// valueRange -> { cols: {header: letter}, rows: [{...header: value, row_number}] }\nconst readTab = (vr) => {\n  const values = (vr && vr.values) || [];\n  const header = (values[0] || []).map((h) => String(h ?? '').trim());\n  const cols = {};\n  header.forEach((h, i) => { if (h) cols[h] = colLetter(i); });\n  const rows = values.slice(1).map((r, i) => {\n    const o = { row_number: i + 2 };\n    header.forEach((h, j) => { if (h) o[h] = r[j] ?? ''; });\n    return o;\n  });\n  return { cols, rows };\n};\nconst cell = (tab, cols, header, row) => {\n  if (!cols[header]) throw new Error(`Tab \"${tab}\" thiếu cột \"${header}\"`);\n  return `${qTab(tab)}!${cols[header]}${row}`;\n};\nconst PHONE = /(?:\\+?84|0)(?:\\d[\\s.-]?){8,10}\\d/;\nconst nowVN = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');\nconst todayVN = () => new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' });\n// ---- end shared helpers ----\n\nconst cfg = {};\nfor (const { json: r } of $('Read Config Sheet').all()) {\n  const k = String(r['Key'] ?? '').trim();\n  if (k) cfg[k] = typeof r['Value'] === 'string' ? r['Value'].trim() : r['Value'];\n}\n// Email intake: verify the sender against tab \"Nhân sự\", then route by subject prefix.\n// Unknown senders get NO reply (could be a parent - hard rule 1); they are only logged.\nconst missing = ['SMTP_FROM', 'ADMIN_EMAIL'].filter((k) => !String(cfg[k] ?? '').trim());\nif (missing.length) throw new Error('Config tab thiếu khoá: ' + missing.join(', '));\nconst tabs = parseTabs(cfg.CONTENT_TABS);\nconst tabByCode = {};\nfor (const t of tabs) tabByCode[tabCode(t)] = t;\nconst active = (v) => !['false', 'khong', 'no', '0', 'ngung'].includes(low(v));\nconst roleOk = (r) => ['nhap', 'duyet', 'quan tri', 'admin'].some((x) => low(r).includes(x));\nconst staff = new Map();\nfor (const { json: j } of $('Đọc Nhân sự').all()) {\n  const email = String(j['Email'] ?? '').trim().toLowerCase();\n  if (!email || !active(j['Đang dùng'])) continue;\n  staff.set(email, { name: String(j['Họ tên'] ?? '').trim() || email, role: String(j['Vai trò'] ?? ''),\n    kinds: String(j['Loại nội dung'] ?? '').split(',').map((s) => tabCode(s)).filter(Boolean) });\n}\nconst now = new Date();\nconst parseDate = (d, m, y) => {\n  d = Number(d); m = Number(m);\n  if (!(d >= 1 && d <= 31 && m >= 1 && m <= 12)) return null;\n  let year = y ? Number(y.length === 2 ? `20${y}` : y) : now.getFullYear();\n  if (!y && (now - new Date(year, m - 1, d)) / 86400000 > 180) year += 1;\n  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${year}`;\n};\nconst cleanBody = (t) => String(t ?? '').replace(/\\r/g, '').split(/\\n-- \\n|\\nOn .{5,120} wrote:\\n|\\nVào .{5,160} đã viết:\\n/)[0].split('\\n').filter((l) => !l.startsWith('>')).join('\\n').trim();\nconst HELP = [\n  'Cách gửi email cho hệ thống (đặt ở đầu tiêu đề):',\n  ...(tabByCode.td ? ['[Thực đơn 06/10] - thực đơn một ngày, nội dung trong thân thư'] : []),\n  ...(tabByCode.tb ? ['[Thông báo] - thông báo, nội dung trong thân thư'] : []),\n  ...(tabByCode.lich ? ['[Lịch 07/10] - lịch/thời khoá biểu'] : []),\n  ...(tabByCode.tin ? ['[Tin] - tin hoạt động'] : []),\n  '[Tóm tắt] - đính kèm 1 file PDF (hoặc dán văn bản vào thân thư) để nhận bản tóm tắt',\n].join('\\n');\n\nconst out = [];\n$('Email Trigger (IMAP)').all().forEach((mail, idx) => {\n  const j = mail.json;\n  const fromAddr = String((j.from && j.from.value && j.from.value[0] && j.from.value[0].address) || j.from || '').toLowerCase().match(/[^\\s<>\"]+@[^\\s<>\"]+/)?.[0] || '';\n  const subject = String(j.subject ?? '').trim();\n  const person = staff.get(fromAddr);\n  const reply = (text) => ({ reply_to: fromAddr, reply_subject: `Re: ${subject}`.slice(0, 200), reply_text: text });\n  if (!person || !roleOk(person.role)) {\n    out.push({ json: { action: 3, from: fromAddr, subject: subject.slice(0, 150) } });\n    return;\n  }\n  const s = noAcc(subject).toLowerCase().replace(/^(re|fw|fwd)\\s*:\\s*/g, '');\n  const body = cleanBody(j.text || String(j.html || '').replace(/<[^>]+>/g, ' '));\n  let m, code = null, date = todayVN();\n  if ((m = s.match(/^\\[?\\s*thuc\\s*don\\s+(\\d{1,2})[/.-](\\d{1,2})(?:[/.-](\\d{2,4}))?\\s*\\]?/))) { code = 'td'; date = parseDate(m[1], m[2], m[3]); }\n  else if ((m = s.match(/^\\[?\\s*lich\\s+(\\d{1,2})[/.-](\\d{1,2})(?:[/.-](\\d{2,4}))?\\s*\\]?/))) { code = 'lich'; date = parseDate(m[1], m[2], m[3]); }\n  else if (/^\\[?\\s*thong\\s*bao\\s*\\]?/.test(s)) code = 'tb';\n  else if (/^\\[?\\s*tin(\\s*hoat\\s*dong)?\\s*\\]/.test(s)) code = 'tin';\n  else if (/^\\[?\\s*tom\\s*tat\\s*\\]?/.test(s)) {\n    const keys = Object.keys(mail.binary || {});\n    const pdfKey = keys.find((k) => /pdf/i.test(String(mail.binary[k].mimeType || '')) || /\\.pdf$/i.test(String(mail.binary[k].fileName || '')));\n    if (!pdfKey && body.length < 200) { out.push({ json: { action: 2, ...reply('Không thấy file PDF hoặc văn bản đủ dài để tóm tắt.\\n\\n' + HELP) } }); return; }\n    const item = { json: { action: 1, has_pdf: !!pdfKey, pdf_key: pdfKey || '', body: body.slice(0, 12000), name: person.name, ...reply('') } };\n    if (pdfKey) item.binary = { [pdfKey]: mail.binary[pdfKey] };\n    out.push(item);\n    return;\n  } else { out.push({ json: { action: 2, ...reply(HELP) } }); return; }\n\n  const tab = tabByCode[code];\n  if (!date) { out.push({ json: { action: 2, ...reply('Ngày trong tiêu đề không hợp lệ.\\n\\n' + HELP) } }); return; }\n  if (!tab) { out.push({ json: { action: 2, ...reply('Mục này chưa được bật cho cơ sở.\\n\\n' + HELP) } }); return; }\n  if (person.kinds.length && !person.kinds.includes(code)) { out.push({ json: { action: 2, ...reply(`Bạn chưa được phân quyền gửi mục ${tab}.`) } }); return; }\n  if (body.length < 5) { out.push({ json: { action: 2, ...reply('Thân thư trống - chưa có nội dung để ghi.') } }); return; }\n  if (PHONE.test(body)) { out.push({ json: { action: 2, ...reply('Nội dung có số điện thoại nên chưa được ghi. Vui lòng bỏ thông tin cá nhân rồi gửi lại.') } }); return; }\n  out.push({ json: { action: 0, tab, range: `${qTab(tab)}!A:C`, date, content: body.slice(0, 4000), entered_by: `${person.name} (Email)`,\n    ...reply(`Đã ghi vào tab ${tab} (ngày ${date}). Bản nháp sẽ được gửi người duyệt; không cần làm gì thêm.`) } });\n});\nreturn out;\n"
+      },
+      "id": "5804f92e-7170-5a3d-b6a1-9917a6aa3aa1",
+      "name": "Nhận diện người gửi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 4,
+        "output": "={{ $json.action }}"
+      },
+      "id": "448d98db-a849-5361-a053-eb911e6fea31",
+      "name": "Theo loại",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/[YOUR_GOOGLE_SHEET_ID]/values/{{ encodeURIComponent($json.range) }}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ values: [[ $json.date, $json.content, $json.entered_by ]] }) }}"
+      },
+      "id": "5c332994-4f81-5338-8ea7-859ec46d23de",
+      "name": "Ghi nội dung",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        80
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map((it, i) => ({ json: $('Nhận diện người gửi').itemMatching(i).json }));\n"
+      },
+      "id": "082e6f93-2f0b-547c-93f3-34e614facf12",
+      "name": "Trả lời đã ghi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "da329e2e-4c70-5e22-acc2-6d19208d38d4",
+              "leftValue": "={{ $json.has_pdf }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ebb02120-6326-5300-9bf0-cf4fcf0d9517",
+      "name": "IF - Có PDF",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "={{ $json.pdf_key }}",
+        "options": {}
+      },
+      "id": "0f64697d-81b0-58e7-89c7-d92c11bf7c1d",
+      "name": "Đọc PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Text to summarise: the PDF's extracted text if there was one, else the email body.\nreturn $input.all().map((it, i) => {\n  const src = $('Nhận diện người gửi').itemMatching(i).json;\n  const text = String(it.json.text || src.body || '').replace(/\\s+\\n/g, '\\n').slice(0, 12000);\n  return { json: { ...src, source_text: text } };\n});\n"
+      },
+      "id": "c3d449f6-8254-5d7c-982a-70a38fefe152",
+      "name": "Chuẩn bị tóm tắt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Tóm tắt văn bản sau bằng tiếng Việt:\n\n{{ $json.source_text }}",
+        "options": {
+          "systemMessage": "Bạn tóm tắt văn bản hành chính cho giáo viên, nhân viên trường học.\n- 5 đến 8 gạch đầu dòng ý chính.\n- Sau đó liệt kê riêng: Hạn chót (ngày, giờ) và Người/bộ phận phụ trách, nếu văn bản có.\n- Chỉ dùng thông tin có trong văn bản. Không tự thêm số liệu, ngày tháng hay tên.\n- Không chép lại thông tin cá nhân của học sinh nếu văn bản có.\n- Trả lời dạng văn bản thường, không dùng markdown."
+        }
+      },
+      "id": "1a6188a8-d39a-5f60-8208-fb8383b07353",
+      "name": "AI Agent - Tóm tắt",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": "={{ ($('Read Config Sheet').all().find(r => r.json.Key === 'OLLAMA_MODEL') || { json: {} }).json.Value || 'qwen3.5:9b' }}",
+        "baseUrl": "http://winhost:11434",
+        "options": {
+          "temperature": 0.2,
+          "numCtx": 8192
+        }
+      },
+      "id": "8331c1e1-5269-5628-be41-a63cee1bcee3",
+      "name": "Ollama Model - Tóm tắt",
+      "type": "@n8n/n8n-nodes-langchain.lmOllama",
+      "typeVersion": 1,
+      "position": [
+        1740,
+        500
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "[YOUR_OLLAMA_CREDENTIAL_ID]",
+          "name": "Ollama Local"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map((it, i) => {\n  const src = $('Chuẩn bị tóm tắt').itemMatching(i).json;\n  const out = String(it.json.output || '').replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();\n  const ok = !it.json.error && out;\n  const text = ok\n    ? 'Bản tóm tắt do máy soạn - cần đối chiếu với văn bản gốc trước khi dùng.\\n\\n' + out\n    : 'Hệ thống chưa tóm tắt được văn bản này (máy chủ AI không phản hồi). Vui lòng thử lại sau hoặc báo quản trị.';\n  return { json: { reply_to: src.reply_to, reply_subject: src.reply_subject, reply_text: text } };\n});\n"
+      },
+      "id": "a26e2b65-56e4-5b80-ac4f-d6f967ce397b",
+      "name": "Trả lời tóm tắt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $('Read Config Sheet').all().find(r => r.json.Key === 'SMTP_FROM').json.Value }}",
+        "toEmail": "={{ $json.reply_to }}",
+        "subject": "={{ $json.reply_subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.reply_text }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "8dc2f164-04e8-580a-af4d-715415937f9b",
+      "name": "Gửi trả lời",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2260,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "[YOUR_SMTP_CREDENTIAL_ID]",
+          "name": "Victoria School SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "[YOUR_GOOGLE_SHEET_ID]",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "System Health",
+          "mode": "name",
+          "cachedResultName": "System Health"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy HH:mm:ss') }}",
+            "Workflow": "I - Email",
+            "Status": "WARNING",
+            "Last Run": "",
+            "Details": "={{ 'Email từ người không có trong danh sách (không trả lời): ' + $json.from + ' - ' + $json.subject }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Workflow",
+              "displayName": "Workflow",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Last Run",
+              "displayName": "Last Run",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Details",
+              "displayName": "Details",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "fe655da5-b82b-5442-85b6-ff98812e4298",
+      "name": "Ghi người lạ vào System Health",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1120,
+        560
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Read Config Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config Sheet": {
+      "main": [
+        [
+          {
+            "node": "Đọc Nhân sự",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc Nhân sự": {
+      "main": [
+        [
+          {
+            "node": "Nhận diện người gửi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nhận diện người gửi": {
+      "main": [
+        [
+          {
+            "node": "Theo loại",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Theo loại": {
+      "main": [
+        [
+          {
+            "node": "Ghi nội dung",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF - Có PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gửi trả lời",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ghi người lạ vào System Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ghi nội dung": {
+      "main": [
+        [
+          {
+            "node": "Trả lời đã ghi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trả lời đã ghi": {
+      "main": [
+        [
+          {
+            "node": "Gửi trả lời",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Có PDF": {
+      "main": [
+        [
+          {
+            "node": "Đọc PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Chuẩn bị tóm tắt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc PDF": {
+      "main": [
+        [
+          {
+            "node": "Chuẩn bị tóm tắt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chuẩn bị tóm tắt": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Tóm tắt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Tóm tắt": {
+      "main": [
+        [
+          {
+            "node": "Trả lời tóm tắt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trả lời tóm tắt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trả lời tóm tắt": {
+      "main": [
+        [
+          {
+            "node": "Gửi trả lời",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Model - Tóm tắt": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Tóm tắt",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "none",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
+  },
+  "versionId": "i-email-intake-b5",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [],
+  "pinData": {}
+}

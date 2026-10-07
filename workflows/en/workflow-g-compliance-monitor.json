@@ -61,7 +61,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nreturn [{ json: cfg }];\n"
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nconst missing = [\"SMTP_FROM\", \"ADMIN_EMAIL\"].filter((k) => !String(cfg[k] ?? '').trim());\nif (missing.length) throw new Error('Config tab thiếu khoá: ' + missing.join(', '));\nreturn [{ json: cfg }];\n"
       },
       "id": "g1000001-0001-4000-8000-000000000020",
       "name": "Read Config",
@@ -266,7 +266,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Collect all results and check failures\n// runs after batch loop completes\nconst allResults = $('Evaluate Response').all();\n\nconst failures = allResults.filter(r => r.json.status !== \"PASS\");\nconst passes = allResults.filter(r => r.json.status === \"PASS\");\n\nconst summary = {\n  total: allResults.length,\n  pass_count: passes.length,\n  fail_count: failures.length,\n  has_failures: failures.length > 0,\n  failures: failures.map(f => ({\n    url: f.json.url,\n    status: f.json.status,\n    note: f.json.note,\n    noi_dung: f.json.noi_dung || f.json.check_content || \"\"\n  })),\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: summary }];"
+        "jsCode": "// Collect all results and check failures\n// runs after batch loop completes\n// Loop Over Items runs Evaluate Response once per URL; .all() alone returns only the last run.\nconst allResults = [];\nfor (let run = 0; run < 10000; run++) {\n  let items;\n  try { items = $('Evaluate Response').all(0, run); } catch (e) { break; }\n  if (!items || !items.length) break;\n  allResults.push(...items);\n}\n\nconst failures = allResults.filter(r => r.json.status !== \"PASS\");\nconst passes = allResults.filter(r => r.json.status === \"PASS\");\n\nconst summary = {\n  total: allResults.length,\n  pass_count: passes.length,\n  fail_count: failures.length,\n  has_failures: failures.length > 0,\n  failures: failures.map(f => ({\n    url: f.json.url,\n    status: f.json.status,\n    note: f.json.note,\n    noi_dung: f.json.noi_dung || f.json.check_content || \"\"\n  })),\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: summary }];"
       },
       "id": "g1000001-0001-4000-8000-000000000008",
       "name": "Aggregate Results",
@@ -330,11 +330,11 @@
     },
     {
       "parameters": {
-        "model": "qwen2.5:7b",
-        "baseUrl": "http://ollama:11434",
+        "model": "={{ $('Read Config').first().json.OLLAMA_MODEL || 'qwen3.5:9b' }}",
+        "baseUrl": "http://winhost:11434",
         "options": {
           "temperature": 0.3,
-          "numCtx": 4096
+          "numCtx": 8192
         }
       },
       "id": "g1000001-0001-4000-8000-000000000011",
@@ -354,11 +354,11 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
-        "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') || 'admin@victoria.edu.vn' }}",
+        "fromEmail": "={{ $('Read Config').first().json.SMTP_FROM }}",
+        "toEmail": "={{ $('Read Config').first().json.ADMIN_EMAIL }}",
         "subject": "=[ALERT] Website compliance check - {{ $json.fail_count || '' }} URLs failing",
         "emailFormat": "html",
-        "html": "=<h2>&#128269; Victoria TL3 website compliance report</h2>\n<p><strong>Time:</strong> {{ $('Aggregate Results').first().json.timestamp }}</p>\n<p><strong>Total URLs:</strong> {{ $('Aggregate Results').first().json.total }} | <strong>Passed:</strong> {{ $('Aggregate Results').first().json.pass_count }} | <strong>Failed:</strong> {{ $('Aggregate Results').first().json.fail_count }}</p>\n<hr>\n<h3>AI analysis:</h3>\n<div>{{ $json.output || $json.text || 'Analysis unavailable' }}</div>\n<hr>\n<p><em>Full detail: <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit#gid=compliance\">Compliance sheet</a></em></p>\n<p><em>Automated email from the Victoria TL3 system.</em></p>",
+        "html": "=<h2>&#128269; Victoria TL3 website compliance report</h2>\n<p><strong>Time:</strong> {{ $('Aggregate Results').first().json.timestamp }}</p>\n<p><strong>Total URLs:</strong> {{ $('Aggregate Results').first().json.total }} | <strong>Passed:</strong> {{ $('Aggregate Results').first().json.pass_count }} | <strong>Failed:</strong> {{ $('Aggregate Results').first().json.fail_count }}</p>\n<hr>\n<h3>AI analysis:</h3>\n<div>{{ String($json.output || $json.text || '').replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim() || 'Analysis unavailable' }}</div>\n<hr>\n<p><em>Full detail: <a href=\"https://docs.google.com/spreadsheets/d/[YOUR_GOOGLE_SHEET_ID]/edit#gid=compliance\">Compliance sheet</a></em></p>\n<p><em>Automated email from the Victoria TL3 system.</em></p>",
         "options": {
           "appendAttribution": false
         }
@@ -462,11 +462,11 @@
     },
     {
       "parameters": {
-        "model": "qwen2.5:7b",
-        "baseUrl": "http://ollama:11434",
+        "model": "={{ $('Read Config Weekly').first().json.OLLAMA_MODEL || 'qwen3.5:9b' }}",
+        "baseUrl": "http://winhost:11434",
         "options": {
           "temperature": 0.3,
-          "numCtx": 4096
+          "numCtx": 8192
         }
       },
       "id": "g1000001-0001-4000-8000-000000000017",
@@ -486,11 +486,11 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ ($('Read Config Weekly')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
-        "toEmail": "={{ ($('Read Config Weekly')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') || 'admin@victoria.edu.vn' }}",
+        "fromEmail": "={{ $('Read Config Weekly').first().json.SMTP_FROM }}",
+        "toEmail": "={{ $('Read Config Weekly').first().json.ADMIN_EMAIL }}",
         "subject": "=[WEEKLY REPORT] Victoria website compliance - week of {{ new Date().toLocaleDateString('en-GB') }}",
         "emailFormat": "html",
-        "html": "={{ $json.output || $json.text || 'Report unavailable' }}",
+        "html": "={{ String($json.output || $json.text || '').replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim() || 'Report unavailable' }}",
         "options": {
           "appendAttribution": false
         }
@@ -548,7 +548,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nreturn [{ json: cfg }];\n"
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nconst missing = [\"SMTP_FROM\", \"ADMIN_EMAIL\"].filter((k) => !String(cfg[k] ?? '').trim());\nif (missing.length) throw new Error('Config tab thiếu khoá: ' + missing.join(', '));\nreturn [{ json: cfg }];\n"
       },
       "id": "g1000001-0001-4000-8000-000000000022",
       "name": "Read Config Weekly",

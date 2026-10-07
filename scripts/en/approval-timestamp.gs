@@ -37,7 +37,8 @@ function onEdit(e) {
 
   if (isApproved === true) {
     // Stamp approver and timestamp
-    const approverEmail = Session.getActiveUser().getEmail();
+    // Personal Google accounts hide other editors' emails from Apps Script; never leave it blank.
+    const approverEmail = Session.getActiveUser().getEmail() || 'unknown (see version history)';
     const timestamp = new Date();
 
     sheet.getRange(row, APPROVER_COL).setValue(approverEmail);

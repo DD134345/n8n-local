@@ -61,7 +61,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nreturn [{ json: cfg }];\n"
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nconst missing = [\"SMTP_FROM\", \"ADMIN_EMAIL\", \"EXPECTED_WORKFLOWS\"].filter((k) => !String(cfg[k] ?? '').trim());\nif (missing.length) throw new Error('Config tab thiếu khoá: ' + missing.join(', '));\nreturn [{ json: cfg }];\n"
       },
       "id": "m1000001-0001-4000-8000-000000000012",
       "name": "Read Config",
@@ -76,16 +76,11 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:5678/api/v1/executions?limit=50&status=error",
+        "url": "http://localhost:5678/api/v1/executions?limit=250",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 10000,
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
+          "timeout": 15000
         }
       },
       "id": "m1000001-0001-4000-8000-000000000002",
@@ -107,16 +102,11 @@
     },
     {
       "parameters": {
-        "url": "=http://localhost:5678/api/v1/workflows?active=true",
+        "url": "http://localhost:5678/api/v1/workflows?limit=250",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 10000,
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
+          "timeout": 15000
         }
       },
       "id": "m1000001-0001-4000-8000-000000000003",
@@ -136,7 +126,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Combine data from sequential execution\nconst failedNodeData = $('HTTP - Get Failed Executions').first()?.json || {};\nconst activeNodeData = $('HTTP - Get Active Workflows').first()?.json || {};\n\nconst failedExecutions = (failedNodeData.data || []).filter(e => e.status === \"error\" || e.status === \"crashed\");\nconst activeWorkflows = (activeNodeData.data || []).filter(w => w.active === true);\n\nconst issues = [];\nif (failedExecutions.length > 0) {\n  issues.push(`${failedExecutions.length} workflow execution error(s) found in past 6h`);\n}\n\nconst report = {\n  timestamp: new Date().toISOString(),\n  active_workflow_count: activeWorkflows.length,\n  failed_execution_count: failedExecutions.length,\n  has_issues: failedExecutions.length > 0,\n  failed_details: failedExecutions.map(e => ({\n    id: e.id,\n    workflowId: e.workflowId,\n    mode: e.mode,\n    startedAt: e.startedAt,\n    stoppedAt: e.stoppedAt\n  })),\n  summary: failedExecutions.length > 0\n    ? `SYSTEM WARNING: ${failedExecutions.length} executions failed in the last 6 hours.`\n    : \"SYSTEM HEALTHY: All active workflows running without errors.\"\n};\n\nreturn [{ json: report }];"
+        "jsCode": "// Combine data from both API calls. Figures are computed here; the model only explains them.\nconst cfg = $('Read Config').first().json;\nconst expected = String(cfg.EXPECTED_WORKFLOWS || '').split(',').map((s) => s.trim()).filter(Boolean);\nconst execs = $('HTTP - Get Failed Executions').first()?.json?.data || [];\nconst workflows = $('HTTP - Get Active Workflows').first()?.json?.data || [];\nconst byName = new Map(workflows.map((w) => [w.name, w]));\nconst ids = new Set(expected.map((n) => byName.get(n)?.id).filter(Boolean));\nconst since = Date.now() - 24 * 3600 * 1000;\nconst failed = execs.filter((e) => ['error', 'crashed'].includes(e.status) && ids.has(e.workflowId) && Date.parse(e.startedAt || e.stoppedAt || 0) >= since);\nconst missing = expected.filter((n) => !(byName.get(n) && byName.get(n).active === true));\nconst nameOf = (id) => (workflows.find((w) => w.id === id) || {}).name || id;\nconst issues = [];\nif (failed.length) issues.push(`${failed.length} failed runs in the last 24 hours`);\nif (missing.length) issues.push(`Workflows not running (inactive or missing): ${missing.join(', ')}`);\nreturn [{ json: {\n  timestamp: new Date().toISOString(),\n  overall_status: issues.length ? 'WARNING' : 'OK',\n  has_issues: issues.length > 0,\n  recent_failures_24h: failed.length,\n  missing_workflows: missing,\n  failed_details: failed.slice(0, 20).map((e) => ({ workflow: nameOf(e.workflowId), id: e.id, status: e.status, startedAt: e.startedAt })),\n  summary: issues.length ? issues.join('; ') : 'All expected workflows are active and nothing failed in the last 24 hours.',\n} }];\n"
       },
       "id": "m1000001-0001-4000-8000-000000000004",
       "name": "Build Health Report",
@@ -186,7 +176,7 @@
           "systemMessage": "You are the DevOps engineer monitoring the Victoria TL3 automation system.\n\nTask: analyse the system health report and write an alert notice in English.\n\nThe notice needs:\n1. A status summary: which workflows failed, which are missing\n2. Likely causes, based on the error messages\n3. Specific remediation steps\n4. Urgency: Low (informational) / Medium (needs review) / High (fix now)\n\nTone: technical, concise, actionable."
         },
         "promptType": "define",
-        "text": "=Analyse the system health report:\n\n{{ JSON.stringify($json, null, 2) }}\n\nWrite a concise alert notice in HTML."
+        "text": "=Health check result (already computed - do not change or add numbers):\n{{ $json.summary }}\n\n{{ JSON.stringify($json.failed_details, null, 2) }}\n\nExplain likely causes and fixes, briefly, as HTML."
       },
       "id": "m1000001-0001-4000-8000-000000000006",
       "name": "AI Agent - Diagnose Issues",
@@ -199,11 +189,11 @@
     },
     {
       "parameters": {
-        "model": "qwen2.5:7b",
-        "baseUrl": "http://ollama:11434",
+        "model": "={{ $('Read Config').first().json.OLLAMA_MODEL || 'qwen3.5:9b' }}",
+        "baseUrl": "http://winhost:11434",
         "options": {
           "temperature": 0.2,
-          "numCtx": 4096
+          "numCtx": 8192
         }
       },
       "id": "m1000001-0001-4000-8000-000000000007",
@@ -223,11 +213,11 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
-        "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') || 'admin@victoria.edu.vn' }}",
+        "fromEmail": "={{ $('Read Config').first().json.SMTP_FROM }}",
+        "toEmail": "={{ $('Read Config').first().json.ADMIN_EMAIL }}",
         "subject": "=[SYSTEM] Victoria TL3 alert - {{ $('Build Health Report').first().json.overall_status }}",
         "emailFormat": "html",
-        "html": "=<h2>&#9881; Victoria TL3 system health report</h2>\n<p><strong>Time:</strong> {{ $('Build Health Report').first().json.timestamp }}</p>\n<p><strong>Overall status:</strong> {{ $('Build Health Report').first().json.overall_status }}</p>\n<p><strong>Failures in last 24h:</strong> {{ $('Build Health Report').first().json.recent_failures_24h }}</p>\n<p><strong>Workflows missing:</strong> {{ $('Build Health Report').first().json.missing_workflows.join(', ') || 'None' }}</p>\n<hr>\n<h3>AI analysis:</h3>\n<div>{{ $json.output || $json.text || 'Analysis unavailable' }}</div>\n<hr>\n<p><em>Automated email from the Master Orchestrator.</em></p>",
+        "html": "=<h2>&#9881; Victoria TL3 system health report</h2>\n<p><strong>Time:</strong> {{ $('Build Health Report').first().json.timestamp }}</p>\n<p><strong>Overall status:</strong> {{ $('Build Health Report').first().json.overall_status }}</p>\n<p><strong>Failures in last 24h:</strong> {{ $('Build Health Report').first().json.recent_failures_24h }}</p>\n<p><strong>Workflows missing:</strong> {{ $('Build Health Report').first().json.missing_workflows.join(', ') || 'None' }}</p>\n<p><strong>{{ $('Build Health Report').first().json.summary }}</strong></p>\n<hr>\n<h3>AI analysis:</h3>\n<div>{{ String($json.output || $json.text || '').replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim() || 'Analysis unavailable' }}</div>\n<hr>\n<p><em>Automated email from the Master Orchestrator.</em></p>",
         "options": {
           "appendAttribution": false
         }
@@ -267,7 +257,7 @@
             "Workflow": "Master Orchestrator",
             "Status": "={{ $('Build Health Report').first().json.overall_status }}",
             "Last Run": "={{ $('Build Health Report').first().json.timestamp }}",
-            "Details": "=Failures: {{ $('Build Health Report').first().json.recent_failures_24h }} | Missing: {{ $('Build Health Report').first().json.missing_workflows.length }}"
+            "Details": "={{ $('Build Health Report').first().json.summary }}"
           },
           "schema": [
             {

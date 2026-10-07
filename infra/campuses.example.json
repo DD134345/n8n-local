@@ -1,0 +1,24 @@
+{
+  "_help": "Copy to infra/campuses.json (git-ignored) and fill in. Credential IDs: open the credential in n8n, the id is the last part of the URL. Keys match YOUR_<KEY>_CREDENTIAL_ID in the workflow files. A campus may override any of them in its own credentials block. 'workflows' is optional: key prefixes to include (H is always included).",
+  "credentials": {
+    "GOOGLE_SHEETS": "",
+    "GOOGLE_SHEETS_TRIGGER": "",
+    "SMTP": "",
+    "OLLAMA": "",
+    "GEMINI": "",
+    "WORDPRESS": "",
+    "N8N_API": "",
+    "IMAP": "",
+    "FEATURE_WEBHOOK": ""
+  },
+  "campuses": [
+    {
+      "code": "TL3",
+      "name": "Trường TH & THCS Victoria Thăng Long 3",
+      "sheetId": "",
+      "zaloTokenEnv": "ZALO_BOT_TOKEN_TL3",
+      "workflows": ["c", "d", "e", "g", "i", "master", "z"],
+      "credentials": {}
+    }
+  ]
+}

@@ -81,7 +81,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\n// Carry the triggering rows through so downstream nodes keep their data,\n// while $('Read Config').first().json.KEY still resolves.\nconst rows = $('Sheets Trigger - Approval Changed').all();\nif (rows.length === 0) return [{ json: cfg }];\nreturn rows.map((item, i) => ({ json: { ...cfg, ...item.json }, pairedItem: { item: i } }));\n"
+        "jsCode": "const cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Kho\\u00e1'] ?? item.json['Kh\\u00f3a'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Gi\\u00e1 tr\\u1ecb'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\n// Carry the triggering rows through so downstream nodes keep their data,\n// while $('Read Config').first().json.KEY still resolves.\nconst rows = $('Sheets Trigger - Approval Changed').all();\nif (rows.length === 0) return [{ json: cfg }];\nconst missing = [\"CMS_TYPE\", \"SMTP_FROM\", \"ADMIN_EMAIL\", \"POSTER_EMAIL\"].filter((k) => !String(cfg[k] ?? '').trim());\nif (missing.length) throw new Error('Config tab thiếu khoá: ' + missing.join(', '));\nreturn rows.map((item, i) => ({ json: { ...cfg, ...item.json }, pairedItem: { item: i } }));\n"
       },
       "id": "d1000001-0001-4000-8000-000000000012",
       "name": "Read Config",
@@ -155,7 +155,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "leftValue": "={{ ($('Read Config')?.first()?.json?.CMS_TYPE || 'wordpress') || 'wordpress' }}",
+                    "leftValue": "={{ $('Read Config').first().json.CMS_TYPE }}",
                     "rightValue": "wordpress",
                     "operator": {
                       "type": "string",
@@ -170,7 +170,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "leftValue": "={{ ($('Read Config')?.first()?.json?.CMS_TYPE || 'wordpress') || 'wordpress' }}",
+                    "leftValue": "={{ $('Read Config').first().json.CMS_TYPE }}",
                     "rightValue": "manual",
                     "operator": {
                       "type": "string",
@@ -200,7 +200,7 @@
     },
     {
       "parameters": {
-        "url": "={{ ($('Read Config')?.first()?.json?.WORDPRESS_URL || 'https://victoria-thanglong3.edu.vn') || 'https://your-school-site.edu.vn' }}/wp-json/wp/v2/posts",
+        "url": "={{ $('Read Config').first().json.WORDPRESS_URL }}/wp-json/wp/v2/posts",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
         "sendBody": true,
@@ -220,7 +220,7 @@
       ],
       "credentials": {
         "httpBasicAuth": {
-          "id": "CREDENTIAL_ID_WP",
+          "id": "[YOUR_WORDPRESS_CREDENTIAL_ID]",
           "name": "WordPress Application Password"
         }
       },
@@ -269,8 +269,8 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
-        "toEmail": "={{ ($('Read Config')?.first()?.json?.POSTER_EMAIL || 'poster@victoria.edu.vn') || 'poster@victoria.edu.vn' }}",
+        "fromEmail": "={{ $('Read Config').first().json.SMTP_FROM }}",
+        "toEmail": "={{ $('Read Config').first().json.POSTER_EMAIL }}",
         "subject": "=[TO PUBLISH] {{ $('IF - Approved and Not Posted').item.json['Date'] }} - Menu, Victoria TL3",
         "emailFormat": "html",
         "html": "=<h2>Content ready to publish on the website</h2>\n<p><strong>Date:</strong> {{ $('IF - Approved and Not Posted').item.json['Date'] }}</p>\n<p><strong>Approved by:</strong> {{ $('IF - Approved and Not Posted').item.json['Approved by'] }}</p>\n<p><strong>Approved at:</strong> {{ $('IF - Approved and Not Posted').item.json['Approved at'] }}</p>\n<hr>\n<h3>Website version (copy &amp; paste into the CMS):</h3>\n{{ $('IF - Approved and Not Posted').item.json['Website version'] }}\n<hr>\n<h3>Zalo version:</h3>\n<pre>{{ $('IF - Approved and Not Posted').item.json['Zalo version'] }}</pre>\n<hr>\n<h3>Facebook version:</h3>\n<pre>{{ $('IF - Approved and Not Posted').item.json['Facebook version'] }}</pre>\n<hr>\n<p><em>Automated email from the Victoria TL3 system. Please publish the content above to the website and tick \"Published\" in the spreadsheet.</em></p>",
@@ -336,8 +336,8 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ ($('Read Config')?.first()?.json?.SMTP_FROM || 'no-reply@victoria.edu.vn') || 'no-reply@victoria.edu.vn' }}",
-        "toEmail": "={{ ($('Read Config')?.first()?.json?.ADMIN_EMAIL || 'admin@victoria.edu.vn') || 'admin@victoria.edu.vn' }}",
+        "fromEmail": "={{ $('Read Config').first().json.SMTP_FROM }}",
+        "toEmail": "={{ $('Read Config').first().json.ADMIN_EMAIL }}",
         "subject": "=[ERROR] Automatic publishing failed - {{ $('IF - Approved and Not Posted').item.json['Date'] }}",
         "emailFormat": "html",
         "html": "=<h2>&#9888; Automatic publishing failed</h2>\n<p>The WordPress API returned an error. The content has been emailed to the person who posts manually.</p>\n<p><strong>Date:</strong> {{ $('IF - Approved and Not Posted').item.json['Date'] }}</p>\n<p><strong>Error detail:</strong> {{ $json.error?.message || 'Unknown error' }}</p>\n<p><em>Please check the WordPress API connection.</em></p>",

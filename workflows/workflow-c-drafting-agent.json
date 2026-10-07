@@ -1,15 +1,53 @@
 {
   "name": "C - AI Content Drafting Agent",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
+  },
+  "versionId": "c-drafting-b6",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": ""
+  },
+  "tags": [
+    {
+      "name": "victoria-tl3"
+    },
+    {
+      "name": "agentic"
+    },
+    {
+      "name": "drafting"
+    }
+  ],
+  "pinData": {},
   "nodes": [
     {
       "parameters": {
-        "pollTimes": {
-          "item": [
+        "rule": {
+          "interval": [
             {
-              "mode": "everyMinute"
+              "field": "minutes",
+              "minutesInterval": 2
             }
           ]
-        },
+        }
+      },
+      "id": "520a2e12-2150-5446-8ab5-edca495122b6",
+      "name": "Lịch - mỗi 2 phút",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
         "documentId": {
           "__rl": true,
           "value": "[YOUR_GOOGLE_SHEET_ID]",
@@ -17,27 +55,78 @@
         },
         "sheetName": {
           "__rl": true,
-          "value": "gid=0",
-          "mode": "id",
-          "cachedResultName": "Thực đơn"
+          "value": "Config",
+          "mode": "name",
+          "cachedResultName": "Config"
         },
-        "event": "anyUpdate",
         "options": {}
       },
-      "id": "c1000001-0001-4000-8000-000000000001",
-      "name": "Sheets Trigger - New Content",
-      "type": "n8n-nodes-base.googleSheetsTrigger",
-      "typeVersion": 1,
+      "id": "a35e7898-018c-5129-aeb0-486f3ca00cca",
+      "name": "Read Config Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        200,
-        340
+        220,
+        300
       ],
       "credentials": {
-        "googleSheetsTriggerOAuth2Api": {
+        "googleSheetsOAuth2Api": {
           "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
-          "name": "Google Sheets Trigger OAuth2"
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared helpers (same block in every multi-tab Code node) ----\nconst noAcc = (s) => String(s ?? '').normalize('NFC').replace(/đ/g, 'd').replace(/Đ/g, 'D')\n  .normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');\nconst low = (s) => noAcc(s).toLowerCase().trim();\nconst truthy = (v) => v === true || ['TRUE', 'CO', 'X', '1'].includes(noAcc(v).trim().toUpperCase());\nconst TAB_CODES = { 'thuc don': 'td', 'thong bao': 'tb', 'lich/tkb': 'lich', 'lich': 'lich', 'tin hoat dong': 'tin' };\nconst TAB_EMOJI = { td: '🍽️', tb: '📢', lich: '📅', tin: '🌟' };\nconst tabCode = (tab) => TAB_CODES[low(tab)] || low(tab).replace(/[^a-z0-9]+/g, '');\nconst parseTabs = (v) => String(v || 'Thực đơn').split(',').map((t) => t.trim()).filter(Boolean);\nconst colLetter = (i) => { let s = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };\nconst qTab = (tab) => `'${String(tab).replace(/'/g, \"''\")}'`;\nconst batchQuery = (tabs) => tabs.map((t) => 'ranges=' + encodeURIComponent(`${qTab(t)}!A1:Z`)).join('&');\n// valueRange -> { cols: {header: letter}, rows: [{...header: value, row_number}] }\nconst readTab = (vr) => {\n  const values = (vr && vr.values) || [];\n  const header = (values[0] || []).map((h) => String(h ?? '').trim());\n  const cols = {};\n  header.forEach((h, i) => { if (h) cols[h] = colLetter(i); });\n  const rows = values.slice(1).map((r, i) => {\n    const o = { row_number: i + 2 };\n    header.forEach((h, j) => { if (h) o[h] = r[j] ?? ''; });\n    return o;\n  });\n  return { cols, rows };\n};\nconst cell = (tab, cols, header, row) => {\n  if (!cols[header]) throw new Error(`Tab \"${tab}\" thiếu cột \"${header}\"`);\n  return `${qTab(tab)}!${cols[header]}${row}`;\n};\nconst PHONE = /(?:\\+?84|0)(?:\\d[\\s.-]?){8,10}\\d/;\nconst nowVN = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');\nconst todayVN = () => new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' });\n// ---- end shared helpers ----\n\nconst cfg = {};\nfor (const item of $input.all()) {\n  const key = item.json['Key'] ?? item.json['Khoá'] ?? item.json['Khóa'];\n  if (key === undefined || key === null || String(key).trim() === '') continue;\n  const value = item.json['Value'] ?? item.json['Giá trị'] ?? '';\n  cfg[String(key).trim()] = typeof value === 'string' ? value.trim() : value;\n}\n\nconst missing = ['SCHOOL_NAME'].filter((k) => !String(cfg[k] ?? '').trim());\nif (missing.length) throw new Error('Config tab thiếu khoá: ' + missing.join(', '));\ncfg.CONTENT_TABS = parseTabs(cfg.CONTENT_TABS).join(', ');\ncfg.HASHTAGS = String(cfg.HASHTAGS || '');\ncfg.OLLAMA_MODEL = String(cfg.OLLAMA_MODEL || 'qwen3.5:9b');\ncfg.OLLAMA_CLOUD_MODEL = String(cfg.OLLAMA_CLOUD_MODEL || 'gemma4:cloud');\ncfg.GEMINI_MODEL = String(cfg.GEMINI_MODEL || 'gemini-3.8-flash').replace(/^models\\//, '');\ncfg.DRAFT_BATCH_LIMIT = Math.max(1, Number(cfg.DRAFT_BATCH_LIMIT) || 3);\ncfg.batch_query = batchQuery(parseTabs(cfg.CONTENT_TABS));\nreturn [{ json: cfg }];\n"
+      },
+      "id": "c93a8ca0-b2ec-5210-ba81-39b030a5fed8",
+      "name": "Read Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/[YOUR_GOOGLE_SHEET_ID]/values:batchGet?{{ $json.batch_query }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "527993aa-cf4f-567f-ad4d-fefb97c4ec73",
+      "name": "Đọc các tab nội dung",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
         }
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared helpers (same block in every multi-tab Code node) ----\nconst noAcc = (s) => String(s ?? '').normalize('NFC').replace(/đ/g, 'd').replace(/Đ/g, 'D')\n  .normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');\nconst low = (s) => noAcc(s).toLowerCase().trim();\nconst truthy = (v) => v === true || ['TRUE', 'CO', 'X', '1'].includes(noAcc(v).trim().toUpperCase());\nconst TAB_CODES = { 'thuc don': 'td', 'thong bao': 'tb', 'lich/tkb': 'lich', 'lich': 'lich', 'tin hoat dong': 'tin' };\nconst TAB_EMOJI = { td: '🍽️', tb: '📢', lich: '📅', tin: '🌟' };\nconst tabCode = (tab) => TAB_CODES[low(tab)] || low(tab).replace(/[^a-z0-9]+/g, '');\nconst parseTabs = (v) => String(v || 'Thực đơn').split(',').map((t) => t.trim()).filter(Boolean);\nconst colLetter = (i) => { let s = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };\nconst qTab = (tab) => `'${String(tab).replace(/'/g, \"''\")}'`;\nconst batchQuery = (tabs) => tabs.map((t) => 'ranges=' + encodeURIComponent(`${qTab(t)}!A1:Z`)).join('&');\n// valueRange -> { cols: {header: letter}, rows: [{...header: value, row_number}] }\nconst readTab = (vr) => {\n  const values = (vr && vr.values) || [];\n  const header = (values[0] || []).map((h) => String(h ?? '').trim());\n  const cols = {};\n  header.forEach((h, i) => { if (h) cols[h] = colLetter(i); });\n  const rows = values.slice(1).map((r, i) => {\n    const o = { row_number: i + 2 };\n    header.forEach((h, j) => { if (h) o[h] = r[j] ?? ''; });\n    return o;\n  });\n  return { cols, rows };\n};\nconst cell = (tab, cols, header, row) => {\n  if (!cols[header]) throw new Error(`Tab \"${tab}\" thiếu cột \"${header}\"`);\n  return `${qTab(tab)}!${cols[header]}${row}`;\n};\nconst PHONE = /(?:\\+?84|0)(?:\\d[\\s.-]?){8,10}\\d/;\nconst nowVN = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');\nconst todayVN = () => new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' });\n// ---- end shared helpers ----\n\n// Rows that need drafts across every content tab. Never touches a row whose website draft\n// already has text (a person's edits win), nor anything already published.\nconst cfg = $('Read Config').first().json;\nconst tabs = parseTabs(cfg.CONTENT_TABS);\nconst ranges = ($input.first().json.valueRanges) || [];\nconst out = [];\ntabs.forEach((tab, t) => {\n  const { cols, rows } = readTab(ranges[t]);\n  for (const r of rows) {\n    if (!String(r['Ngày'] ?? '').trim() || !String(r['Nội dung'] ?? '').trim()) continue;\n    if (String(r['Bản website'] ?? '').trim() || truthy(r['Đã đăng'])) continue;\n    if (String(r['Ghi chú'] ?? '').includes('nhập tay') || String(r['Ghi chú'] ?? '').includes('Có số điện thoại')) continue;\n    const code = tabCode(tab);\n    out.push({ json: {\n      tab, code, emoji: TAB_EMOJI[code] || '📌', row_number: r.row_number,\n      ngay: String(r['Ngày']), noi_dung: String(r['Nội dung']).slice(0, 4000), nguoi_nhap: String(r['Người nhập'] ?? ''),\n      phone: PHONE.test(String(r['Nội dung'])),\n      cell_web: cell(tab, cols, 'Bản website', r.row_number), cell_zalo: cell(tab, cols, 'Bản Zalo', r.row_number),\n      cell_fb: cell(tab, cols, 'Bản Facebook', r.row_number), cell_note: cell(tab, cols, 'Ghi chú', r.row_number),\n    } });\n  }\n});\n// One GPU: draft a few rows per run, oldest first; the rest follow on the next runs.\nreturn out.slice(0, Number(cfg.DRAFT_BATCH_LIMIT) || 3);\n"
+      },
+      "id": "4402b44a-a8e8-5698-a116-9b6423077061",
+      "name": "Chọn hàng cần soạn",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
     },
     {
       "parameters": {
@@ -45,16 +134,16 @@
           "options": {
             "caseSensitive": true,
             "leftValue": "",
-            "typeValidation": "strict"
+            "typeValidation": "loose"
           },
           "conditions": [
             {
-              "id": "cond-drafts-empty",
-              "leftValue": "={{ $json['Bản website'] }}",
-              "rightValue": "",
+              "id": "c90f9403-1e97-55dd-9135-1f230089f293",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": true,
               "operator": {
-                "type": "string",
-                "operation": "empty",
+                "type": "boolean",
+                "operation": "true",
                 "singleValue": true
               }
             }
@@ -63,40 +152,99 @@
         },
         "options": {}
       },
-      "id": "c1000001-0001-4000-8000-000000000002",
-      "name": "IF - Drafts Empty",
+      "id": "5eaf1829-ef51-5620-8010-0eb6c3f4e446",
+      "name": "IF - Có số điện thoại",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        440,
-        340
+        1100,
+        300
       ]
     },
     {
       "parameters": {
+        "jsCode": "// Hard rule 4: content with a phone number is not sent to any model.\nconst data = $input.all().map(({ json: r }) => ({ range: r.cell_note, values: [['Có số điện thoại trong nội dung - không soạn tự động. Xoá thông tin cá nhân rồi xoá ghi chú này để soạn lại, hoặc nhập tay.']] }));\nreturn data.length ? [{ json: { data } }] : [];\n"
+      },
+      "id": "2f6aa7c8-22ba-5df7-9848-014e0e8f625c",
+      "name": "Ghi chú có số điện thoại",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/[YOUR_GOOGLE_SHEET_ID]/values:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
         "options": {
-          "systemMessage": "=Bạn là chuyên gia nội dung giáo dục cho Trường Victoria Thăng Long 3.\n\nNhiệm vụ: Từ nội dung thô được cung cấp, hãy tạo BA phiên bản:\n\n1. **Bản website** (HTML):\n   - Dùng thẻ HTML cơ bản (<h3>, <p>, <ul>, <li>)\n   - Giọng văn trang trọng, chuyên nghiệp\n   - Bao gồm tiêu đề rõ ràng\n\n2. **Bản Zalo** (plain text):\n   - Không dùng HTML\n   - Xuống dòng rõ ràng\n   - Giọng thân thiện, dễ đọc trên điện thoại\n   - Bắt đầu bằng emoji phù hợp (🍽️ cho thực đơn, 📢 cho thông báo)\n\n3. **Bản Facebook** (social media):\n   - Giọng năng động, gần gũi\n   - Hashtag cuối bài: #VictoriaThangLong3 #VictoriaSchool\n   - Emoji phù hợp trong bài\n\nTrả lời CHÍNH XÁC theo format JSON sau (không thêm markdown code block):\n{\"ban_website\": \"...\", \"ban_zalo\": \"...\", \"ban_facebook\": \"...\"}\n\nNội dung hôm nay: {{ $json['Nội dung'] }}\nNgày: {{ $json['Ngày'] }}"
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ valueInputOption: 'RAW', data: $json.data }) }}"
+      },
+      "id": "b55874e9-8768-5978-88ed-4eea9e0a4f8b",
+      "name": "Ghi chú (SĐT)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        80
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "[YOUR_GOOGLE_SHEETS_CREDENTIAL_ID]",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "=Bạn là chuyên gia nội dung giáo dục cho {{ $('Read Config').first().json.SCHOOL_NAME }}.\n\nLoại nội dung: {{ $('Chọn hàng cần soạn').item.json.tab }}\n\nNhiệm vụ: Từ nội dung thô được cung cấp, hãy tạo BA phiên bản:\n\n1. **Bản website** (HTML):\n   - Dùng thẻ HTML cơ bản (<h3>, <p>, <ul>, <li>)\n   - Giọng văn trang trọng, chuyên nghiệp\n   - Bao gồm tiêu đề rõ ràng\n\n2. **Bản Zalo** (plain text):\n   - Không dùng HTML\n   - Xuống dòng rõ ràng\n   - Giọng thân thiện, dễ đọc trên điện thoại\n   - Bắt đầu bằng emoji {{ $('Chọn hàng cần soạn').item.json.emoji }}\n\n3. **Bản Facebook** (social media):\n   - Giọng năng động, gần gũi\n   - Hashtag cuối bài: {{ $('Read Config').first().json.HASHTAGS }}\n   - Emoji phù hợp trong bài\n\nChỉ dùng thông tin có trong nội dung gốc; không thêm tên, số điện thoại hay thông tin cá nhân của học sinh.\n\nTrả lời CHÍNH XÁC theo format JSON sau (không thêm markdown code block):\n{\"ban_website\": \"...\", \"ban_zalo\": \"...\", \"ban_facebook\": \"...\"}"
         },
         "promptType": "define",
-        "text": "=Hãy tạo 3 phiên bản nội dung cho ngày {{ $json['Ngày'] }}.\n\nNội dung gốc:\n{{ $json['Nội dung'] }}\n\nNgười nhập: {{ $json['Người nhập'] }}"
+        "text": "=Hãy tạo 3 phiên bản nội dung ({{ $('Chọn hàng cần soạn').item.json.tab }}) cho ngày {{ $('Chọn hàng cần soạn').item.json.ngay }}.\n\nNội dung gốc:\n{{ $('Chọn hàng cần soạn').item.json.noi_dung }}\n\nNgười nhập: {{ $('Chọn hàng cần soạn').item.json.nguoi_nhap }}"
       },
       "id": "c1000001-0001-4000-8000-000000000003",
       "name": "AI Agent - Ollama Drafting",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        700,
-        240
+        1340,
+        300
       ],
       "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "model": "qwen2.5:7b",
-        "baseUrl": "http://ollama:11434",
+        "options": {
+          "systemMessage": "=Bạn là chuyên gia nội dung giáo dục cho {{ $('Read Config').first().json.SCHOOL_NAME }}.\n\nLoại nội dung: {{ $('Chọn hàng cần soạn').item.json.tab }}\n\nNhiệm vụ: Từ nội dung thô được cung cấp, hãy tạo BA phiên bản:\n\n1. **Bản website** (HTML):\n   - Dùng thẻ HTML cơ bản (<h3>, <p>, <ul>, <li>)\n   - Giọng văn trang trọng, chuyên nghiệp\n   - Bao gồm tiêu đề rõ ràng\n\n2. **Bản Zalo** (plain text):\n   - Không dùng HTML\n   - Xuống dòng rõ ràng\n   - Giọng thân thiện, dễ đọc trên điện thoại\n   - Bắt đầu bằng emoji {{ $('Chọn hàng cần soạn').item.json.emoji }}\n\n3. **Bản Facebook** (social media):\n   - Giọng năng động, gần gũi\n   - Hashtag cuối bài: {{ $('Read Config').first().json.HASHTAGS }}\n   - Emoji phù hợp trong bài\n\nChỉ dùng thông tin có trong nội dung gốc; không thêm tên, số điện thoại hay thông tin cá nhân của học sinh.\n\nTrả lời CHÍNH XÁC theo format JSON sau (không thêm markdown code block):\n{\"ban_website\": \"...\", \"ban_zalo\": \"...\", \"ban_facebook\": \"...\"}"
+        },
+        "promptType": "define",
+        "text": "=Hãy tạo 3 phiên bản nội dung ({{ $('Chọn hàng cần soạn').item.json.tab }}) cho ngày {{ $('Chọn hàng cần soạn').item.json.ngay }}.\n\nNội dung gốc:\n{{ $('Chọn hàng cần soạn').item.json.noi_dung }}\n\nNgười nhập: {{ $('Chọn hàng cần soạn').item.json.nguoi_nhap }}"
+      },
+      "id": "c1000001-0001-4000-8000-000000000005",
+      "name": "AI Agent - Gemini Fallback",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        740
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": "={{ $('Read Config').first().json.OLLAMA_MODEL }}",
+        "baseUrl": "http://winhost:11434",
         "options": {
           "temperature": 0.7,
-          "numCtx": 4096
+          "numCtx": 8192
         }
       },
       "id": "c1000001-0001-4000-8000-000000000004",
@@ -104,8 +252,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmOllama",
       "typeVersion": 1,
       "position": [
-        600,
-        460
+        1300,
+        480
       ],
       "credentials": {
         "ollamaApi": {
@@ -116,27 +264,9 @@
     },
     {
       "parameters": {
+        "modelName": "={{ 'models/' + $('Read Config').first().json.GEMINI_MODEL }}",
         "options": {
-          "systemMessage": "=Bạn là chuyên gia nội dung giáo dục cho Trường Victoria Thăng Long 3.\n\nNhiệm vụ: Từ nội dung thô được cung cấp, hãy tạo BA phiên bản:\n\n1. **Bản website** (HTML):\n   - Dùng thẻ HTML cơ bản (<h3>, <p>, <ul>, <li>)\n   - Giọng văn trang trọng, chuyên nghiệp\n   - Bao gồm tiêu đề rõ ràng\n\n2. **Bản Zalo** (plain text):\n   - Không dùng HTML\n   - Xuống dòng rõ ràng\n   - Giọng thân thiện, dễ đọc trên điện thoại\n   - Bắt đầu bằng emoji phù hợp (🍽️ cho thực đơn, 📢 cho thông báo)\n\n3. **Bản Facebook** (social media):\n   - Giọng năng động, gần gũi\n   - Hashtag cuối bài: #VictoriaThangLong3 #VictoriaSchool\n   - Emoji phù hợp trong bài\n\nTrả lời CHÍNH XÁC theo format JSON sau (không thêm markdown code block):\n{\"ban_website\": \"...\", \"ban_zalo\": \"...\", \"ban_facebook\": \"...\"}\n\nNội dung hôm nay: {{ $json['Nội dung'] }}\nNgày: {{ $json['Ngày'] }}"
-        },
-        "promptType": "define",
-        "text": "=Hãy tạo 3 phiên bản nội dung cho ngày {{ $json['Ngày'] }}.\n\nNội dung gốc:\n{{ $json['Nội dung'] }}\n\nNgười nhập: {{ $json['Người nhập'] }}"
-      },
-      "id": "c1000001-0001-4000-8000-000000000005",
-      "name": "AI Agent - Gemini Fallback",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2,
-      "position": [
-        700,
-        540
-      ]
-    },
-    {
-      "parameters": {
-        "modelName": "models/gemini-3.5-flash",
-        "options": {
-          "temperature": 0.7,
-          "maxOutputTokens": 2048
+          "maxOutputTokens": 8192
         }
       },
       "id": "c1000001-0001-4000-8000-000000000006",
@@ -144,102 +274,62 @@
       "type": "@n8n/n8n-nodes-langchain.lmGoogleGemini",
       "typeVersion": 1,
       "position": [
-        600,
-        720
+        2200,
+        920
       ],
       "credentials": {
         "googleGeminiApi": {
-          "id": "CREDENTIAL_ID_GEMINI",
+          "id": "[YOUR_GEMINI_CREDENTIAL_ID]",
           "name": "Gemini API Free"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// Parse the AI agent output (JSON string) into structured fields\nconst items = $input.all();\nconst sourceItems = $('IF - Drafts Empty').all();\nconst results = [];\n\nfor (let index = 0; index < items.length; index++) {\n  const item = items[index];\n  let output = item.json.output || item.json.text || '';\n  \n  // Try to extract JSON from the response\n  let parsed;\n  try {\n    parsed = JSON.parse(output);\n  } catch (e) {\n    const jsonMatch = output.match(/\\{[\\s\\S]*?\"ban_website\"[\\s\\S]*?\\}/);\n    if (jsonMatch) {\n      try {\n        parsed = JSON.parse(jsonMatch[0]);\n      } catch (e2) {\n        parsed = {\n          ban_website: output,\n          ban_zalo: output,\n          ban_facebook: output\n        };\n      }\n    } else {\n      parsed = {\n        ban_website: output,\n        ban_zalo: output,\n        ban_facebook: output\n      };\n    }\n  }\n  \n  // Recover row_number from the IF node's true-branch items\n  // (the agent drops input fields, so we look up the source row)\n  const srcIndex = Math.min(index, sourceItems.length - 1);\n  const rowNumber = sourceItems[srcIndex]?.json?.row_number ?? '';\n  \n  results.push({\n    json: {\n      ban_website: parsed.ban_website || '',\n      ban_zalo: parsed.ban_zalo || '',\n      ban_facebook: parsed.ban_facebook || '',\n      row_number: rowNumber\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "// Parse the model output into the three drafts. Items arrive from the Ollama agent, the Gemini\n// agent, or Gemini's error output (both models failed) - the last ones become a visible note.\nconst src = (i) => { try { return $('Chọn hàng cần soạn').itemMatching(i).json; } catch (e) { return $('Chọn hàng cần soạn').all()[i]?.json || {}; } };\nreturn $input.all().map((item, i) => {\n  const s = src(i);\n  const base = { tab: s.tab, row_number: s.row_number, cell_web: s.cell_web, cell_zalo: s.cell_zalo, cell_fb: s.cell_fb, cell_note: s.cell_note };\n  // Thinking models (qwen3.5, gemma4) may put their reasoning in <think> tags before the answer.\n  const output = String(item.json.output || item.json.text || '').replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();\n  if (item.json.error || !output.trim()) return { json: { ...base, failed: true } };\n  let parsed = null;\n  const tryParse = (t) => { try { return JSON.parse(t); } catch (e) { return null; } };\n  parsed = tryParse(output.replace(/^```(?:json)?\\s*|\\s*```$/g, ''));\n  if (!parsed) { const m = output.match(/\\{[\\s\\S]*\"ban_website\"[\\s\\S]*\\}/); if (m) parsed = tryParse(m[0]); }\n  if (!parsed || !parsed.ban_website) return { json: { ...base, failed: true } };\n  return { json: { ...base, failed: false, ban_website: String(parsed.ban_website), ban_zalo: String(parsed.ban_zalo || ''), ban_facebook: String(parsed.ban_facebook || '') } };\n});\n"
       },
-      "id": "c1000001-0001-4000-8000-000000000007",
+      "id": "107ec87c-f6df-5b19-9ea6-3a1e2dddfecb",
       "name": "Parse AI Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
-        340
+        2480,
+        300
       ]
     },
     {
       "parameters": {
-        "operation": "update",
-        "documentId": {
-          "__rl": true,
-          "value": "[YOUR_GOOGLE_SHEET_ID]",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "gid=0",
-          "mode": "id",
-          "cachedResultName": "Thực đơn"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Bản website": "={{ $json.ban_website }}",
-            "Bản Zalo": "={{ $json.ban_zalo }}",
-            "Bản Facebook": "={{ $json.ban_facebook }}",
-            "row_number": "={{ $json.row_number }}"
-          },
-          "matchingColumns": [
-            "row_number"
-          ],
-          "schema": [
-            {
-              "id": "Bản website",
-              "displayName": "Bản website",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Bản Zalo",
-              "displayName": "Bản Zalo",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Bản Facebook",
-              "displayName": "Bản Facebook",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "row_number",
-              "displayName": "row_number",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ]
-        },
-        "options": {}
+        "jsCode": "// One batchUpdate for every row in this run (RAW: text is never parsed as a formula).\nconst data = [];\nfor (const { json: r } of $input.all()) {\n  if (r.failed) {\n    data.push({ range: r.cell_note, values: [['Chưa soạn được bản nháp - vui lòng nhập tay vào cột Bản website (xoá ghi chú này để thử soạn lại)']] });\n  } else {\n    data.push({ range: r.cell_web, values: [[r.ban_website]] });\n    data.push({ range: r.cell_zalo, values: [[r.ban_zalo]] });\n    data.push({ range: r.cell_fb, values: [[r.ban_facebook]] });\n  }\n}\nreturn data.length ? [{ json: { data } }] : [];\n"
       },
-      "id": "c1000001-0001-4000-8000-000000000008",
-      "name": "Update Sheet - Write Drafts",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "id": "f4727fbe-7b37-5325-b104-409c72f371f3",
+      "name": "Gom bản nháp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        1200,
-        340
+        2700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/[YOUR_GOOGLE_SHEET_ID]/values:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ valueInputOption: 'RAW', data: $json.data }) }}"
+      },
+      "id": "3ae12dc2-8574-5c78-9663-0af400b92bc2",
+      "name": "Update Sheet - Write Drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2920,
+        300
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -249,41 +339,215 @@
       }
     },
     {
-      "parameters": {},
-      "id": "c1000001-0001-4000-8000-000000000009",
-      "name": "No Op - Already Has Drafts",
-      "type": "n8n-nodes-base.noOp",
+      "parameters": {
+        "options": {
+          "systemMessage": "=Bạn là chuyên gia nội dung giáo dục cho {{ $('Read Config').first().json.SCHOOL_NAME }}.\n\nLoại nội dung: {{ $('Chọn hàng cần soạn').item.json.tab }}\n\nNhiệm vụ: Từ nội dung thô được cung cấp, hãy tạo BA phiên bản:\n\n1. **Bản website** (HTML):\n   - Dùng thẻ HTML cơ bản (<h3>, <p>, <ul>, <li>)\n   - Giọng văn trang trọng, chuyên nghiệp\n   - Bao gồm tiêu đề rõ ràng\n\n2. **Bản Zalo** (plain text):\n   - Không dùng HTML\n   - Xuống dòng rõ ràng\n   - Giọng thân thiện, dễ đọc trên điện thoại\n   - Bắt đầu bằng emoji {{ $('Chọn hàng cần soạn').item.json.emoji }}\n\n3. **Bản Facebook** (social media):\n   - Giọng năng động, gần gũi\n   - Hashtag cuối bài: {{ $('Read Config').first().json.HASHTAGS }}\n   - Emoji phù hợp trong bài\n\nChỉ dùng thông tin có trong nội dung gốc; không thêm tên, số điện thoại hay thông tin cá nhân của học sinh.\n\nTrả lời CHÍNH XÁC theo format JSON sau (không thêm markdown code block):\n{\"ban_website\": \"...\", \"ban_zalo\": \"...\", \"ban_facebook\": \"...\"}"
+        },
+        "promptType": "define",
+        "text": "=Hãy tạo 3 phiên bản nội dung ({{ $('Chọn hàng cần soạn').item.json.tab }}) cho ngày {{ $('Chọn hàng cần soạn').item.json.ngay }}.\n\nNội dung gốc:\n{{ $('Chọn hàng cần soạn').item.json.noi_dung }}\n\nNgười nhập: {{ $('Chọn hàng cần soạn').item.json.nguoi_nhap }}"
+      },
+      "id": "b67ae467-090c-50bf-8aeb-82edd2b6c44e",
+      "name": "AI Agent - Ollama Cloud",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        520
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": "={{ $('Read Config').first().json.OLLAMA_CLOUD_MODEL }}",
+        "baseUrl": "http://winhost:11434",
+        "options": {
+          "temperature": 0.7,
+          "numCtx": 8192
+        }
+      },
+      "id": "da61ef48-2b1e-5e8d-8265-41ec34744152",
+      "name": "Ollama Cloud Model",
+      "type": "@n8n/n8n-nodes-langchain.lmOllama",
       "typeVersion": 1,
       "position": [
-        440,
-        540
+        1760,
+        700
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "[YOUR_OLLAMA_CREDENTIAL_ID]",
+          "name": "Ollama Local"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "40e07b49-8d2e-50ae-869f-52b6fc203317",
+              "leftValue": "={{ (() => { const o = String($json.output || $json.text || '').replace(/<think>[\\s\\S]*?<\\/think>/g, ''); const m = o.match(/\\{[\\s\\S]*\"ban_website\"[\\s\\S]*\\}/); try { return !!(m && String(JSON.parse(m[0].replace(/^```(?:json)?|```$/g, '')).ban_website || '').trim()); } catch (e) { return false; } })() }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "56e0bfed-c898-5321-9e3d-12baeac07ffe",
+      "name": "IF - Bản nháp máy cục bộ dùng được",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c77bf7ee-aaed-501c-980b-0a7dcc7be4b6",
+              "leftValue": "={{ (() => { const o = String($json.output || $json.text || '').replace(/<think>[\\s\\S]*?<\\/think>/g, ''); const m = o.match(/\\{[\\s\\S]*\"ban_website\"[\\s\\S]*\\}/); try { return !!(m && String(JSON.parse(m[0].replace(/^```(?:json)?|```$/g, '')).ban_website || '').trim()); } catch (e) { return false; } })() }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2ec830de-80d7-537b-9ce2-b09d6067d0b1",
+      "name": "IF - Bản nháp Ollama Cloud dùng được",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        520
       ]
     }
   ],
   "connections": {
-    "Sheets Trigger - New Content": {
+    "Lịch - mỗi 2 phút": {
       "main": [
         [
           {
-            "node": "IF - Drafts Empty",
+            "node": "Read Config Sheet",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "IF - Drafts Empty": {
+    "Read Config Sheet": {
       "main": [
         [
           {
-            "node": "AI Agent - Ollama Drafting",
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "Đọc các tab nội dung",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc các tab nội dung": {
+      "main": [
+        [
+          {
+            "node": "Chọn hàng cần soạn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chọn hàng cần soạn": {
+      "main": [
+        [
+          {
+            "node": "IF - Có số điện thoại",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ghi chú có số điện thoại": {
+      "main": [
+        [
+          {
+            "node": "Ghi chú (SĐT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "Gom bản nháp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gom bản nháp": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet - Write Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Có số điện thoại": {
+      "main": [
+        [
+          {
+            "node": "Ghi chú có số điện thoại",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "No Op - Already Has Drafts",
+            "node": "AI Agent - Ollama Drafting",
             "type": "main",
             "index": 0
           }
@@ -294,14 +558,14 @@
       "main": [
         [
           {
-            "node": "Parse AI Output",
+            "node": "IF - Bản nháp máy cục bộ dùng được",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "AI Agent - Gemini Fallback",
+            "node": "AI Agent - Ollama Cloud",
             "type": "main",
             "index": 0
           }
@@ -310,6 +574,13 @@
     },
     "AI Agent - Gemini Fallback": {
       "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Parse AI Output",
@@ -341,40 +612,70 @@
         ]
       ]
     },
-    "Parse AI Output": {
+    "IF - Bản nháp máy cục bộ dùng được": {
       "main": [
         [
           {
-            "node": "Update Sheet - Write Drafts",
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent - Ollama Cloud",
             "type": "main",
             "index": 0
           }
         ]
       ]
-    }
-  },
-  "active": false,
-  "settings": {
-    "executionOrder": "v1",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner",
-    "errorWorkflow": "[YOUR_ERROR_WORKFLOW_ID]"
-  },
-  "versionId": "c-drafting-v1",
-  "meta": {
-    "templateCredsSetupCompleted": false,
-    "instanceId": ""
-  },
-  "tags": [
-    {
-      "name": "victoria-tl3"
     },
-    {
-      "name": "agentic"
+    "AI Agent - Ollama Cloud": {
+      "main": [
+        [
+          {
+            "node": "IF - Bản nháp Ollama Cloud dùng được",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent - Gemini Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    {
-      "name": "drafting"
+    "IF - Bản nháp Ollama Cloud dùng được": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent - Gemini Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Cloud Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Ollama Cloud",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
     }
-  ],
-  "pinData": {}
+  }
 }
