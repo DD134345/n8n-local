@@ -60,6 +60,58 @@ whole pipeline is readable in one place, and work can continue by hand if automa
 | `workflow-z-zalo-gateway` | Staff-only Zalo bot (trial): submit content, approve or return drafts, get notified of new drafts |
 | `newton/nwt-p-publisher-astro` | Publishes approved news to the Astro kindergarten site; re-checks the approval hash so content edited after approval is held back |
 
+### Workflow canvases
+
+As they appear in the n8n editor (click a name to expand). Red markers only mean no credentials are attached in the export.
+
+![C · Drafting agent in the n8n editor](assets/workflows/workflow-c-drafting-agent.png)
+
+<details><summary>D · Auto-publish</summary>
+
+![D · Auto-publish in the n8n editor](assets/workflows/workflow-d-auto-publish.png)
+
+</details>
+<details><summary>E · Thursday reminder</summary>
+
+![E · Thursday reminder in the n8n editor](assets/workflows/workflow-e-thursday-reminder.png)
+
+</details>
+<details><summary>I · Email intake</summary>
+
+![I · Email intake in the n8n editor](assets/workflows/workflow-i-email-intake.png)
+
+</details>
+<details><summary>F · Feature tracker</summary>
+
+![F · Feature tracker in the n8n editor](assets/workflows/workflow-f-feature-tracker.png)
+
+</details>
+<details><summary>G · Compliance monitor</summary>
+
+![G · Compliance monitor in the n8n editor](assets/workflows/workflow-g-compliance-monitor.png)
+
+</details>
+<details><summary>H · Global error</summary>
+
+![H · Global error in the n8n editor](assets/workflows/workflow-h-global-error.png)
+
+</details>
+<details><summary>Master · Health check</summary>
+
+![Master · Health check in the n8n editor](assets/workflows/workflow-master-orchestrator.png)
+
+</details>
+<details><summary>Z · Zalo staff gateway</summary>
+
+![Z · Zalo staff gateway in the n8n editor](assets/workflows/workflow-z-zalo-gateway.png)
+
+</details>
+<details><summary>P · Newton publisher (Astro)</summary>
+
+![P · Newton publisher (Astro) in the n8n editor](assets/workflows/nwt-p-publisher-astro.png)
+
+</details>
+
 ## Design rules
 
 - Nothing is published without a human approval.
