@@ -79,7 +79,7 @@ en-*-instructions.md
 # ---------------------------------------------------------------------------
 # Internal documentation (keep the repo to workflow source only)
 # ---------------------------------------------------------------------------
-docs/
+docs/*
 .md/
 
 # ---------------------------------------------------------------------------
@@ -110,6 +110,10 @@ victoria-group-apis-criteria.md
 # ---------------------------------------------------------------------------
 *.md
 !/README.md
+# Public setup docs (credentials, Sheet templates, workflow quick start)
+!/docs/SETUP.md
+!/workflows/README.md
+!/workflows/en/README.md
 
 # Generated per-campus workflow imports and campus registry (contain credential IDs / Sheet IDs)
 infra/import/

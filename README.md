@@ -124,7 +124,7 @@ As they appear in the n8n editor (click a name to expand). Red markers only mean
 
 - **n8n** (self-hosted, Community edition) on **Docker Compose** with **Postgres**
 - **Ollama** running `qwen2.5:7b` locally (fits an 8 GB laptop GPU); **Gemini** free tier as fallback
-- **Google Sheets** as the data layer, **Google Apps Script** for approver identity, **Gmail** for alerts
+- **Google Sheets** as the data layer, **Google Apps Script** for approver identity, the school's SMTP server for alerts
 - **Astro** static site for the school website, with verification scripts for SEO, routes,
   colour contrast, and EXIF stripping
 - Developed with a team of AI coding agents (OpenCode CLI via a local model router, local models
@@ -154,7 +154,7 @@ docker compose up -d        # n8n on http://<VM_IP>:5678
 5. **Zalo**: one bot per campus; put `ZALO_BOT_TOKEN_<CODE>=...` in `infra/zalo.env`.
 
 All workflows ship inactive. Fill each campus Sheet's `Config` and `Nhân sự` tabs first
-(`docs/REFERENCE.md`). `workflows/` (Vietnamese) is canonical; `workflows/en/` only mirrors the
+(`docs/SETUP.md`). `workflows/` (Vietnamese) is canonical; `workflows/en/` only mirrors the
 core fixes.
 
 Website:
