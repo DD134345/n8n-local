@@ -223,14 +223,19 @@
       "parameters": {
         "promptType": "define",
         "text": "=Tóm tắt văn bản sau bằng tiếng Việt:\n\n{{ $json.source_text }}",
-        "options": {
-          "systemMessage": "Bạn tóm tắt văn bản hành chính cho giáo viên, nhân viên trường học.\n- 5 đến 8 gạch đầu dòng ý chính.\n- Sau đó liệt kê riêng: Hạn chót (ngày, giờ) và Người/bộ phận phụ trách, nếu văn bản có.\n- Chỉ dùng thông tin có trong văn bản. Không tự thêm số liệu, ngày tháng hay tên.\n- Không chép lại thông tin cá nhân của học sinh nếu văn bản có.\n- Trả lời dạng văn bản thường, không dùng markdown."
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "Bạn tóm tắt văn bản hành chính cho giáo viên, nhân viên trường học.\n- 5 đến 8 gạch đầu dòng ý chính.\n- Sau đó liệt kê riêng: Hạn chót (ngày, giờ) và Người/bộ phận phụ trách, nếu văn bản có.\n- Chỉ dùng thông tin có trong văn bản. Không tự thêm số liệu, ngày tháng hay tên.\n- Không chép lại thông tin cá nhân của học sinh nếu văn bản có.\n- Trả lời dạng văn bản thường, không dùng markdown."
+            }
+          ]
         }
       },
       "id": "1a6188a8-d39a-5f60-8208-fb8383b07353",
       "name": "AI Agent - Tóm tắt",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
       "position": [
         1780,
         300
@@ -243,7 +248,8 @@
         "baseUrl": "http://winhost:11434",
         "options": {
           "temperature": 0.2,
-          "numCtx": 8192
+          "numCtx": 8192,
+          "think": false
         }
       },
       "id": "8331c1e1-5269-5628-be41-a63cee1bcee3",
@@ -263,7 +269,7 @@
     },
     {
       "parameters": {
-        "jsCode": "return $input.all().map((it, i) => {\n  const src = $('Chuẩn bị tóm tắt').itemMatching(i).json;\n  const out = String(it.json.output || '').replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();\n  const ok = !it.json.error && out;\n  const text = ok\n    ? 'Bản tóm tắt do máy soạn - cần đối chiếu với văn bản gốc trước khi dùng.\\n\\n' + out\n    : 'Hệ thống chưa tóm tắt được văn bản này (máy chủ AI không phản hồi). Vui lòng thử lại sau hoặc báo quản trị.';\n  return { json: { reply_to: src.reply_to, reply_subject: src.reply_subject, reply_text: text } };\n});\n"
+        "jsCode": "return $input.all().map((it, i) => {\n  const src = $('Chuẩn bị tóm tắt').itemMatching(i).json;\n  const out = String((it.json.text || it.json.output) || '').replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();\n  const ok = !it.json.error && out;\n  const text = ok\n    ? 'Bản tóm tắt do máy soạn - cần đối chiếu với văn bản gốc trước khi dùng.\\n\\n' + out\n    : 'Hệ thống chưa tóm tắt được văn bản này (máy chủ AI không phản hồi). Vui lòng thử lại sau hoặc báo quản trị.';\n  return { json: { reply_to: src.reply_to, reply_subject: src.reply_subject, reply_text: text } };\n});\n"
       },
       "id": "a26e2b65-56e4-5b80-ac4f-d6f967ce397b",
       "name": "Trả lời tóm tắt",

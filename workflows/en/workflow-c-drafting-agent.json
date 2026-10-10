@@ -74,16 +74,21 @@
     },
     {
       "parameters": {
-        "options": {
-          "systemMessage": "=You are an education content specialist for Victoria Thang Long 3 School.\n\nTask: from the raw content provided, produce THREE versions:\n\n1. **Website version** (HTML):\n   - Use basic HTML tags (<h3>, <p>, <ul>, <li>)\n   - Formal, professional tone\n   - Include a clear heading\n\n2. **Zalo version** (plain text):\n   - No HTML\n   - Clear line breaks\n   - Friendly tone, easy to read on a phone\n   - Open with a fitting emoji (a plate for menus, a megaphone for announcements)\n\n3. **Facebook version** (social media):\n   - Lively, approachable tone\n   - Hashtags at the end: #VictoriaThangLong3 #VictoriaSchool\n   - Fitting emoji within the post\n\nReply EXACTLY in this JSON format (no markdown code block):\n{\"website_version\": \"...\", \"zalo_version\": \"...\", \"facebook_version\": \"...\"}\n\nToday's content: {{ $json['Content'] }}\nDate: {{ $json['Date'] }}"
-        },
         "promptType": "define",
-        "text": "=Produce 3 content versions for {{ $json['Date'] }}.\n\nSource content:\n{{ $json['Content'] }}\n\nSubmitted by: {{ $json['Submitted by'] }}"
+        "text": "=Produce 3 content versions for {{ $json['Date'] }}.\n\nSource content:\n{{ $json['Content'] }}\n\nSubmitted by: {{ $json['Submitted by'] }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are an education content specialist for Victoria Thang Long 3 School.\n\nTask: from the raw content provided, produce THREE versions:\n\n1. **Website version** (HTML):\n   - Use basic HTML tags (<h3>, <p>, <ul>, <li>)\n   - Formal, professional tone\n   - Include a clear heading\n\n2. **Zalo version** (plain text):\n   - No HTML\n   - Clear line breaks\n   - Friendly tone, easy to read on a phone\n   - Open with a fitting emoji (a plate for menus, a megaphone for announcements)\n\n3. **Facebook version** (social media):\n   - Lively, approachable tone\n   - Hashtags at the end: #VictoriaThangLong3 #VictoriaSchool\n   - Fitting emoji within the post\n\nReply EXACTLY in this JSON format (no markdown code block):\n{\"website_version\": \"...\", \"zalo_version\": \"...\", \"facebook_version\": \"...\"}\n\n",
+              "type": "SystemMessagePromptTemplate"
+            }
+          ]
+        }
       },
       "id": "c1000001-0001-4000-8000-000000000003",
       "name": "AI Agent - Ollama Drafting",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
       "position": [
         700,
         240
@@ -96,7 +101,9 @@
         "baseUrl": "http://winhost:11434",
         "options": {
           "temperature": 0.7,
-          "numCtx": 8192
+          "numCtx": 8192,
+          "think": false,
+          "format": "json"
         }
       },
       "id": "c1000001-0001-4000-8000-000000000004",
@@ -116,16 +123,21 @@
     },
     {
       "parameters": {
-        "options": {
-          "systemMessage": "=You are an education content specialist for Victoria Thang Long 3 School.\n\nTask: from the raw content provided, produce THREE versions:\n\n1. **Website version** (HTML):\n   - Use basic HTML tags (<h3>, <p>, <ul>, <li>)\n   - Formal, professional tone\n   - Include a clear heading\n\n2. **Zalo version** (plain text):\n   - No HTML\n   - Clear line breaks\n   - Friendly tone, easy to read on a phone\n   - Open with a fitting emoji (a plate for menus, a megaphone for announcements)\n\n3. **Facebook version** (social media):\n   - Lively, approachable tone\n   - Hashtags at the end: #VictoriaThangLong3 #VictoriaSchool\n   - Fitting emoji within the post\n\nReply EXACTLY in this JSON format (no markdown code block):\n{\"website_version\": \"...\", \"zalo_version\": \"...\", \"facebook_version\": \"...\"}\n\nToday's content: {{ $json['Content'] }}\nDate: {{ $json['Date'] }}"
-        },
         "promptType": "define",
-        "text": "=Produce 3 content versions for {{ $json['Date'] }}.\n\nSource content:\n{{ $json['Content'] }}\n\nSubmitted by: {{ $json['Submitted by'] }}"
+        "text": "=Produce 3 content versions for {{ $json['Date'] }}.\n\nSource content:\n{{ $json['Content'] }}\n\nSubmitted by: {{ $json['Submitted by'] }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are an education content specialist for Victoria Thang Long 3 School.\n\nTask: from the raw content provided, produce THREE versions:\n\n1. **Website version** (HTML):\n   - Use basic HTML tags (<h3>, <p>, <ul>, <li>)\n   - Formal, professional tone\n   - Include a clear heading\n\n2. **Zalo version** (plain text):\n   - No HTML\n   - Clear line breaks\n   - Friendly tone, easy to read on a phone\n   - Open with a fitting emoji (a plate for menus, a megaphone for announcements)\n\n3. **Facebook version** (social media):\n   - Lively, approachable tone\n   - Hashtags at the end: #VictoriaThangLong3 #VictoriaSchool\n   - Fitting emoji within the post\n\nReply EXACTLY in this JSON format (no markdown code block):\n{\"website_version\": \"...\", \"zalo_version\": \"...\", \"facebook_version\": \"...\"}\n\n",
+              "type": "SystemMessagePromptTemplate"
+            }
+          ]
+        }
       },
       "id": "c1000001-0001-4000-8000-000000000005",
       "name": "AI Agent - Gemini Fallback",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
       "position": [
         700,
         540
@@ -155,7 +167,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse the AI agent output (JSON string) into structured fields\nconst items = $input.all();\nconst sourceItems = $('IF - Drafts Empty').all();\nconst results = [];\n\nfor (let index = 0; index < items.length; index++) {\n  const item = items[index];\n  let output = item.json.output || item.json.text || '';\n  \n  // Try to extract JSON from the response\n  let parsed;\n  try {\n    parsed = JSON.parse(output);\n  } catch (e) {\n    const jsonMatch = output.match(/\\{[\\s\\S]*?\"ban_website\"[\\s\\S]*?\\}/);\n    if (jsonMatch) {\n      try {\n        parsed = JSON.parse(jsonMatch[0]);\n      } catch (e2) {\n        parsed = {\n          ban_website: output,\n          ban_zalo: output,\n          ban_facebook: output\n        };\n      }\n    } else {\n      parsed = {\n        ban_website: output,\n        ban_zalo: output,\n        ban_facebook: output\n      };\n    }\n  }\n  \n  // Recover row_number from the IF node's true-branch items\n  // (the agent drops input fields, so we look up the source row)\n  const srcIndex = Math.min(index, sourceItems.length - 1);\n  const rowNumber = sourceItems[srcIndex]?.json?.row_number ?? '';\n  \n  results.push({\n    json: {\n      ban_website: parsed.ban_website || '',\n      ban_zalo: parsed.ban_zalo || '',\n      ban_facebook: parsed.ban_facebook || '',\n      row_number: rowNumber\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "// Parse the AI agent output (JSON string) into structured fields\nconst items = $input.all();\nconst sourceItems = $('IF - Drafts Empty').all();\nconst results = [];\n\nfor (let index = 0; index < items.length; index++) {\n  const item = items[index];\n  let output = item.json.output || item.json.text || '';\n  \n  // Try to extract JSON from the response\n  let parsed;\n  try {\n    parsed = JSON.parse(output);\n  } catch (e) {\n    const jsonMatch = output.match(/\\{[\\s\\S]*?\"(?:website_version|ban_website)\"[\\s\\S]*?\\}/);\n    if (jsonMatch) {\n      try {\n        parsed = JSON.parse(jsonMatch[0]);\n      } catch (e2) {\n        parsed = {\n          ban_website: output,\n          ban_zalo: output,\n          ban_facebook: output\n        };\n      }\n    } else {\n      parsed = {\n        ban_website: output,\n        ban_zalo: output,\n        ban_facebook: output\n      };\n    }\n  }\n  \n  // Recover row_number from the IF node's true-branch items\n  // (the agent drops input fields, so we look up the source row)\n  const srcIndex = Math.min(index, sourceItems.length - 1);\n  const rowNumber = sourceItems[srcIndex]?.json?.row_number ?? '';\n  \n  results.push({\n    json: {\n      ban_website: parsed.website_version || parsed.ban_website || '',\n      ban_zalo: parsed.zalo_version || parsed.ban_zalo || '',\n      ban_facebook: parsed.facebook_version || parsed.ban_facebook || '',\n      row_number: rowNumber\n    }\n  });\n}\n\nreturn results;"
       },
       "id": "c1000001-0001-4000-8000-000000000007",
       "name": "Parse AI Output",

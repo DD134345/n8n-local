@@ -172,16 +172,21 @@
     },
     {
       "parameters": {
-        "options": {
-          "systemMessage": "=Bạn là kỹ sư DevOps theo dõi hệ thống tự động hoá {{ $('Read Config').first().json.SCHOOL_NAME || '' }}.\n\nNhiệm vụ: Phân tích báo cáo sức khỏe hệ thống và tạo thông báo cảnh báo bằng tiếng Việt.\n\nBáo cáo cần:\n1. Tóm tắt tình trạng: workflow nào bị lỗi, workflow nào thiếu\n2. Nguyên nhân có thể (dựa trên error message)\n3. Bước khắc phục cụ thể\n4. Mức độ khẩn cấp: Thấp (thông tin) / Trung bình (cần xem) / Cao (cần sửa ngay)\n\nGiọng văn: kỹ thuật, ngắn gọn, hành động được."
-        },
         "promptType": "define",
-        "text": "=Kết quả kiểm tra (đã tính sẵn, không được đổi hay thêm số liệu):\n{{ $json.summary }}\n\n{{ JSON.stringify($json.failed_details, null, 2) }}\n\nGiải thích nguyên nhân có thể và bước khắc phục, ngắn gọn, bằng HTML."
+        "text": "=Trường: {{ $('Read Config').first().json.SCHOOL_NAME || '' }}\n\nKết quả kiểm tra (đã tính sẵn, không được đổi hay thêm số liệu):\n{{ $json.summary }}\n\n{{ JSON.stringify($json.failed_details, null, 2) }}\n\nGiải thích nguyên nhân có thể và bước khắc phục, ngắn gọn, bằng HTML.",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "Bạn là kỹ sư DevOps theo dõi hệ thống tự động hoá cho trường được nêu trong yêu cầu.\n\nNhiệm vụ: Phân tích báo cáo sức khỏe hệ thống và tạo thông báo cảnh báo bằng tiếng Việt.\n\nBáo cáo cần:\n1. Tóm tắt tình trạng: workflow nào bị lỗi, workflow nào thiếu\n2. Nguyên nhân có thể (dựa trên error message)\n3. Bước khắc phục cụ thể\n4. Mức độ khẩn cấp: Thấp (thông tin) / Trung bình (cần xem) / Cao (cần sửa ngay)\n\nGiọng văn: kỹ thuật, ngắn gọn, hành động được."
+            }
+          ]
+        }
       },
       "id": "m1000001-0001-4000-8000-000000000006",
       "name": "AI Agent - Diagnose Issues",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
       "position": [
         1680,
         240
@@ -193,7 +198,8 @@
         "baseUrl": "http://winhost:11434",
         "options": {
           "temperature": 0.2,
-          "numCtx": 8192
+          "numCtx": 8192,
+          "think": false
         }
       },
       "id": "m1000001-0001-4000-8000-000000000007",

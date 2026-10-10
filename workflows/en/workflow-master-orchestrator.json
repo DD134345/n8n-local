@@ -172,16 +172,21 @@
     },
     {
       "parameters": {
-        "options": {
-          "systemMessage": "You are the DevOps engineer monitoring the Victoria TL3 automation system.\n\nTask: analyse the system health report and write an alert notice in English.\n\nThe notice needs:\n1. A status summary: which workflows failed, which are missing\n2. Likely causes, based on the error messages\n3. Specific remediation steps\n4. Urgency: Low (informational) / Medium (needs review) / High (fix now)\n\nTone: technical, concise, actionable."
-        },
         "promptType": "define",
-        "text": "=Health check result (already computed - do not change or add numbers):\n{{ $json.summary }}\n\n{{ JSON.stringify($json.failed_details, null, 2) }}\n\nExplain likely causes and fixes, briefly, as HTML."
+        "text": "=Health check result (already computed - do not change or add numbers):\n{{ $json.summary }}\n\n{{ JSON.stringify($json.failed_details, null, 2) }}\n\nExplain likely causes and fixes, briefly, as HTML.",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "You are the DevOps engineer monitoring the Victoria TL3 automation system.\n\nTask: analyse the system health report and write an alert notice in English.\n\nThe notice needs:\n1. A status summary: which workflows failed, which are missing\n2. Likely causes, based on the error messages\n3. Specific remediation steps\n4. Urgency: Low (informational) / Medium (needs review) / High (fix now)\n\nTone: technical, concise, actionable."
+            }
+          ]
+        }
       },
       "id": "m1000001-0001-4000-8000-000000000006",
       "name": "AI Agent - Diagnose Issues",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
       "position": [
         1680,
         240
@@ -193,7 +198,8 @@
         "baseUrl": "http://winhost:11434",
         "options": {
           "temperature": 0.2,
-          "numCtx": 8192
+          "numCtx": 8192,
+          "think": false
         }
       },
       "id": "m1000001-0001-4000-8000-000000000007",

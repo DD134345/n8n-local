@@ -204,16 +204,21 @@
     },
     {
       "parameters": {
-        "options": {
-          "systemMessage": "=Bạn là chuyên gia nội dung giáo dục cho {{ $('Read Config').first().json.SCHOOL_NAME }}.\n\nLoại nội dung: {{ $('Chọn hàng cần soạn').item.json.tab }}\n\nNhiệm vụ: Từ nội dung thô được cung cấp, hãy tạo BA phiên bản:\n\n1. **Bản website** (HTML):\n   - Dùng thẻ HTML cơ bản (<h3>, <p>, <ul>, <li>)\n   - Giọng văn trang trọng, chuyên nghiệp\n   - Bao gồm tiêu đề rõ ràng\n\n2. **Bản Zalo** (plain text):\n   - Không dùng HTML\n   - Xuống dòng rõ ràng\n   - Giọng thân thiện, dễ đọc trên điện thoại\n   - Bắt đầu bằng emoji {{ $('Chọn hàng cần soạn').item.json.emoji }}\n\n3. **Bản Facebook** (social media):\n   - Giọng năng động, gần gũi\n   - Hashtag cuối bài: {{ $('Read Config').first().json.HASHTAGS }}\n   - Emoji phù hợp trong bài\n\nChỉ dùng thông tin có trong nội dung gốc; không thêm tên, số điện thoại hay thông tin cá nhân của học sinh.\n\nTrả lời CHÍNH XÁC theo format JSON sau (không thêm markdown code block):\n{\"ban_website\": \"...\", \"ban_zalo\": \"...\", \"ban_facebook\": \"...\"}"
-        },
         "promptType": "define",
-        "text": "=Hãy tạo 3 phiên bản nội dung ({{ $('Chọn hàng cần soạn').item.json.tab }}) cho ngày {{ $('Chọn hàng cần soạn').item.json.ngay }}.\n\nNội dung gốc:\n{{ $('Chọn hàng cần soạn').item.json.noi_dung }}\n\nNgười nhập: {{ $('Chọn hàng cần soạn').item.json.nguoi_nhap }}"
+        "text": "=Trường: {{ $('Read Config').first().json.SCHOOL_NAME }}\nLoại nội dung: {{ $('Chọn hàng cần soạn').item.json.tab }}\nEmoji mở đầu: {{ $('Chọn hàng cần soạn').item.json.emoji }}\nHashtags: {{ $('Read Config').first().json.HASHTAGS }}\n\nHãy tạo 3 phiên bản nội dung ({{ $('Chọn hàng cần soạn').item.json.tab }}) cho ngày {{ $('Chọn hàng cần soạn').item.json.ngay }}.\n\nNội dung gốc:\n{{ $('Chọn hàng cần soạn').item.json.noi_dung }}\n\nNgười nhập: {{ $('Chọn hàng cần soạn').item.json.nguoi_nhap }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Bạn là chuyên gia nội dung giáo dục cho trường học được cung cấp trong request.\n\nLoại nội dung: loại nội dung được cung cấp trong request\n\nNhiệm vụ: Từ nội dung thô được cung cấp, hãy tạo BA phiên bản:\n\n1. **Bản website** (HTML):\n   - Dùng thẻ HTML cơ bản (<h3>, <p>, <ul>, <li>)\n   - Giọng văn trang trọng, chuyên nghiệp\n   - Bao gồm tiêu đề rõ ràng\n\n2. **Bản Zalo** (plain text):\n   - Không dùng HTML\n   - Xuống dòng rõ ràng\n   - Giọng thân thiện, dễ đọc trên điện thoại\n   - Bắt đầu bằng emoji emoji được cung cấp trong request\n\n3. **Bản Facebook** (social media):\n   - Giọng năng động, gần gũi\n   - Hashtag cuối bài: hashtag được cung cấp trong request\n   - Emoji phù hợp trong bài\n\nChỉ dùng thông tin có trong nội dung gốc; không thêm tên, số điện thoại hay thông tin cá nhân của học sinh.\n\nTrả lời CHÍNH XÁC theo format JSON sau (không thêm markdown code block):\n{\"ban_website\": \"...\", \"ban_zalo\": \"...\", \"ban_facebook\": \"...\"}",
+              "type": "SystemMessagePromptTemplate"
+            }
+          ]
+        }
       },
       "id": "c1000001-0001-4000-8000-000000000003",
       "name": "AI Agent - Ollama Drafting",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
       "position": [
         1340,
         300
@@ -222,16 +227,21 @@
     },
     {
       "parameters": {
-        "options": {
-          "systemMessage": "=Bạn là chuyên gia nội dung giáo dục cho {{ $('Read Config').first().json.SCHOOL_NAME }}.\n\nLoại nội dung: {{ $('Chọn hàng cần soạn').item.json.tab }}\n\nNhiệm vụ: Từ nội dung thô được cung cấp, hãy tạo BA phiên bản:\n\n1. **Bản website** (HTML):\n   - Dùng thẻ HTML cơ bản (<h3>, <p>, <ul>, <li>)\n   - Giọng văn trang trọng, chuyên nghiệp\n   - Bao gồm tiêu đề rõ ràng\n\n2. **Bản Zalo** (plain text):\n   - Không dùng HTML\n   - Xuống dòng rõ ràng\n   - Giọng thân thiện, dễ đọc trên điện thoại\n   - Bắt đầu bằng emoji {{ $('Chọn hàng cần soạn').item.json.emoji }}\n\n3. **Bản Facebook** (social media):\n   - Giọng năng động, gần gũi\n   - Hashtag cuối bài: {{ $('Read Config').first().json.HASHTAGS }}\n   - Emoji phù hợp trong bài\n\nChỉ dùng thông tin có trong nội dung gốc; không thêm tên, số điện thoại hay thông tin cá nhân của học sinh.\n\nTrả lời CHÍNH XÁC theo format JSON sau (không thêm markdown code block):\n{\"ban_website\": \"...\", \"ban_zalo\": \"...\", \"ban_facebook\": \"...\"}"
-        },
         "promptType": "define",
-        "text": "=Hãy tạo 3 phiên bản nội dung ({{ $('Chọn hàng cần soạn').item.json.tab }}) cho ngày {{ $('Chọn hàng cần soạn').item.json.ngay }}.\n\nNội dung gốc:\n{{ $('Chọn hàng cần soạn').item.json.noi_dung }}\n\nNgười nhập: {{ $('Chọn hàng cần soạn').item.json.nguoi_nhap }}"
+        "text": "=Trường: {{ $('Read Config').first().json.SCHOOL_NAME }}\nLoại nội dung: {{ $('Chọn hàng cần soạn').item.json.tab }}\nEmoji mở đầu: {{ $('Chọn hàng cần soạn').item.json.emoji }}\nHashtags: {{ $('Read Config').first().json.HASHTAGS }}\n\nHãy tạo 3 phiên bản nội dung ({{ $('Chọn hàng cần soạn').item.json.tab }}) cho ngày {{ $('Chọn hàng cần soạn').item.json.ngay }}.\n\nNội dung gốc:\n{{ $('Chọn hàng cần soạn').item.json.noi_dung }}\n\nNgười nhập: {{ $('Chọn hàng cần soạn').item.json.nguoi_nhap }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Bạn là chuyên gia nội dung giáo dục cho trường học được cung cấp trong request.\n\nLoại nội dung: loại nội dung được cung cấp trong request\n\nNhiệm vụ: Từ nội dung thô được cung cấp, hãy tạo BA phiên bản:\n\n1. **Bản website** (HTML):\n   - Dùng thẻ HTML cơ bản (<h3>, <p>, <ul>, <li>)\n   - Giọng văn trang trọng, chuyên nghiệp\n   - Bao gồm tiêu đề rõ ràng\n\n2. **Bản Zalo** (plain text):\n   - Không dùng HTML\n   - Xuống dòng rõ ràng\n   - Giọng thân thiện, dễ đọc trên điện thoại\n   - Bắt đầu bằng emoji emoji được cung cấp trong request\n\n3. **Bản Facebook** (social media):\n   - Giọng năng động, gần gũi\n   - Hashtag cuối bài: hashtag được cung cấp trong request\n   - Emoji phù hợp trong bài\n\nChỉ dùng thông tin có trong nội dung gốc; không thêm tên, số điện thoại hay thông tin cá nhân của học sinh.\n\nTrả lời CHÍNH XÁC theo format JSON sau (không thêm markdown code block):\n{\"ban_website\": \"...\", \"ban_zalo\": \"...\", \"ban_facebook\": \"...\"}",
+              "type": "SystemMessagePromptTemplate"
+            }
+          ]
+        }
       },
       "id": "c1000001-0001-4000-8000-000000000005",
       "name": "AI Agent - Gemini Fallback",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
       "position": [
         2240,
         740
@@ -244,7 +254,9 @@
         "baseUrl": "http://winhost:11434",
         "options": {
           "temperature": 0.7,
-          "numCtx": 8192
+          "numCtx": 8192,
+          "think": false,
+          "format": "json"
         }
       },
       "id": "c1000001-0001-4000-8000-000000000004",
@@ -340,16 +352,21 @@
     },
     {
       "parameters": {
-        "options": {
-          "systemMessage": "=Bạn là chuyên gia nội dung giáo dục cho {{ $('Read Config').first().json.SCHOOL_NAME }}.\n\nLoại nội dung: {{ $('Chọn hàng cần soạn').item.json.tab }}\n\nNhiệm vụ: Từ nội dung thô được cung cấp, hãy tạo BA phiên bản:\n\n1. **Bản website** (HTML):\n   - Dùng thẻ HTML cơ bản (<h3>, <p>, <ul>, <li>)\n   - Giọng văn trang trọng, chuyên nghiệp\n   - Bao gồm tiêu đề rõ ràng\n\n2. **Bản Zalo** (plain text):\n   - Không dùng HTML\n   - Xuống dòng rõ ràng\n   - Giọng thân thiện, dễ đọc trên điện thoại\n   - Bắt đầu bằng emoji {{ $('Chọn hàng cần soạn').item.json.emoji }}\n\n3. **Bản Facebook** (social media):\n   - Giọng năng động, gần gũi\n   - Hashtag cuối bài: {{ $('Read Config').first().json.HASHTAGS }}\n   - Emoji phù hợp trong bài\n\nChỉ dùng thông tin có trong nội dung gốc; không thêm tên, số điện thoại hay thông tin cá nhân của học sinh.\n\nTrả lời CHÍNH XÁC theo format JSON sau (không thêm markdown code block):\n{\"ban_website\": \"...\", \"ban_zalo\": \"...\", \"ban_facebook\": \"...\"}"
-        },
         "promptType": "define",
-        "text": "=Hãy tạo 3 phiên bản nội dung ({{ $('Chọn hàng cần soạn').item.json.tab }}) cho ngày {{ $('Chọn hàng cần soạn').item.json.ngay }}.\n\nNội dung gốc:\n{{ $('Chọn hàng cần soạn').item.json.noi_dung }}\n\nNgười nhập: {{ $('Chọn hàng cần soạn').item.json.nguoi_nhap }}"
+        "text": "=Trường: {{ $('Read Config').first().json.SCHOOL_NAME }}\nLoại nội dung: {{ $('Chọn hàng cần soạn').item.json.tab }}\nEmoji mở đầu: {{ $('Chọn hàng cần soạn').item.json.emoji }}\nHashtags: {{ $('Read Config').first().json.HASHTAGS }}\n\nHãy tạo 3 phiên bản nội dung ({{ $('Chọn hàng cần soạn').item.json.tab }}) cho ngày {{ $('Chọn hàng cần soạn').item.json.ngay }}.\n\nNội dung gốc:\n{{ $('Chọn hàng cần soạn').item.json.noi_dung }}\n\nNgười nhập: {{ $('Chọn hàng cần soạn').item.json.nguoi_nhap }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Bạn là chuyên gia nội dung giáo dục cho trường học được cung cấp trong request.\n\nLoại nội dung: loại nội dung được cung cấp trong request\n\nNhiệm vụ: Từ nội dung thô được cung cấp, hãy tạo BA phiên bản:\n\n1. **Bản website** (HTML):\n   - Dùng thẻ HTML cơ bản (<h3>, <p>, <ul>, <li>)\n   - Giọng văn trang trọng, chuyên nghiệp\n   - Bao gồm tiêu đề rõ ràng\n\n2. **Bản Zalo** (plain text):\n   - Không dùng HTML\n   - Xuống dòng rõ ràng\n   - Giọng thân thiện, dễ đọc trên điện thoại\n   - Bắt đầu bằng emoji emoji được cung cấp trong request\n\n3. **Bản Facebook** (social media):\n   - Giọng năng động, gần gũi\n   - Hashtag cuối bài: hashtag được cung cấp trong request\n   - Emoji phù hợp trong bài\n\nChỉ dùng thông tin có trong nội dung gốc; không thêm tên, số điện thoại hay thông tin cá nhân của học sinh.\n\nTrả lời CHÍNH XÁC theo format JSON sau (không thêm markdown code block):\n{\"ban_website\": \"...\", \"ban_zalo\": \"...\", \"ban_facebook\": \"...\"}",
+              "type": "SystemMessagePromptTemplate"
+            }
+          ]
+        }
       },
       "id": "b67ae467-090c-50bf-8aeb-82edd2b6c44e",
       "name": "AI Agent - Ollama Cloud",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
       "position": [
         1800,
         520
@@ -362,7 +379,9 @@
         "baseUrl": "http://winhost:11434",
         "options": {
           "temperature": 0.7,
-          "numCtx": 8192
+          "numCtx": 8192,
+          "think": false,
+          "format": "json"
         }
       },
       "id": "da61ef48-2b1e-5e8d-8265-41ec34744152",
@@ -391,7 +410,7 @@
           "conditions": [
             {
               "id": "40e07b49-8d2e-50ae-869f-52b6fc203317",
-              "leftValue": "={{ (() => { const o = String($json.output || $json.text || '').replace(/<think>[\\s\\S]*?<\\/think>/g, ''); const m = o.match(/\\{[\\s\\S]*\"ban_website\"[\\s\\S]*\\}/); try { return !!(m && String(JSON.parse(m[0].replace(/^```(?:json)?|```$/g, '')).ban_website || '').trim()); } catch (e) { return false; } })() }}",
+              "leftValue": "={{ (() => { const o = String($json.text || $json.output || '').replace(/<think>[\\s\\S]*?<\\/think>/g, ''); const m = o.match(/\\{[\\s\\S]*\"ban_website\"[\\s\\S]*\\}/); try { return !!(m && String(JSON.parse(m[0].replace(/^```(?:json)?|```$/g, '')).ban_website || '').trim()); } catch (e) { return false; } })() }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -424,7 +443,7 @@
           "conditions": [
             {
               "id": "c77bf7ee-aaed-501c-980b-0a7dcc7be4b6",
-              "leftValue": "={{ (() => { const o = String($json.output || $json.text || '').replace(/<think>[\\s\\S]*?<\\/think>/g, ''); const m = o.match(/\\{[\\s\\S]*\"ban_website\"[\\s\\S]*\\}/); try { return !!(m && String(JSON.parse(m[0].replace(/^```(?:json)?|```$/g, '')).ban_website || '').trim()); } catch (e) { return false; } })() }}",
+              "leftValue": "={{ (() => { const o = String($json.text || $json.output || '').replace(/<think>[\\s\\S]*?<\\/think>/g, ''); const m = o.match(/\\{[\\s\\S]*\"ban_website\"[\\s\\S]*\\}/); try { return !!(m && String(JSON.parse(m[0].replace(/^```(?:json)?|```$/g, '')).ban_website || '').trim()); } catch (e) { return false; } })() }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",

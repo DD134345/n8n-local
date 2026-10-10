@@ -312,16 +312,21 @@
     },
     {
       "parameters": {
-        "options": {
-          "systemMessage": "You are a Vietnamese education compliance specialist, focused on Circular 09/2024.\n\nTask: analyse the website compliance check results and write a concise report in English.\n\nThe report needs:\n1. A status summary (how many URLs passed / failed)\n2. A list of failing URLs with likely causes\n3. Specific remediation steps\n4. A risk rating (Low / Medium / High)\n\nTone: professional, concise, actionable."
-        },
         "promptType": "define",
-        "text": "=Analyse the Victoria TL3 website compliance check results:\n\nTotal URLs checked: {{ $json.total }}\nPassed: {{ $json.pass_count }}\nFailed or errored: {{ $json.fail_count }}\n\nDetail of failing URLs:\n{{ JSON.stringify($json.failures, null, 2) }}\n\nWrite the analysis and remediation recommendations."
+        "text": "=Analyse the Victoria TL3 website compliance check results:\n\nTotal URLs checked: {{ $json.total }}\nPassed: {{ $json.pass_count }}\nFailed or errored: {{ $json.fail_count }}\n\nDetail of failing URLs:\n{{ JSON.stringify($json.failures, null, 2) }}\n\nWrite the analysis and remediation recommendations.",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "You are a Vietnamese education compliance specialist, focused on Circular 09/2024.\n\nTask: analyse the website compliance check results and write a concise report in English.\n\nThe report needs:\n1. A status summary (how many URLs passed / failed)\n2. A list of failing URLs with likely causes\n3. Specific remediation steps\n4. A risk rating (Low / Medium / High)\n\nTone: professional, concise, actionable."
+            }
+          ]
+        }
       },
       "id": "g1000001-0001-4000-8000-000000000010",
       "name": "AI Agent - Analyze Failures",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
       "position": [
         2120,
         480
@@ -334,7 +339,8 @@
         "baseUrl": "http://winhost:11434",
         "options": {
           "temperature": 0.3,
-          "numCtx": 8192
+          "numCtx": 8192,
+          "think": false
         }
       },
       "id": "g1000001-0001-4000-8000-000000000011",
@@ -445,16 +451,21 @@
     },
     {
       "parameters": {
-        "options": {
-          "systemMessage": "You are a compliance specialist for the Victoria school group.\n\nTask: produce a weekly summary report on website compliance status for the Board of Directors.\n\nThe report needs:\n1. An overall compliance score (% of URLs passing)\n2. The trend against last week, where available\n3. Issues that need attention\n4. Recommended actions\n\nFormat: clean, professional HTML suitable for an email to senior management."
-        },
         "promptType": "define",
-        "text": "=Produce the weekly report on Victoria TL3 website compliance.\n\nCurrent data:\n{{ JSON.stringify($input.all().map(i => i.json), null, 2) }}\n\nWrite a professional HTML report for the Board of Directors."
+        "text": "=Produce the weekly report on Victoria TL3 website compliance.\n\nCurrent data:\n{{ JSON.stringify($input.all().map(i => i.json), null, 2) }}\n\nWrite a professional HTML report for the Board of Directors.",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "You are a compliance specialist for the Victoria school group.\n\nTask: produce a weekly summary report on website compliance status for the Board of Directors.\n\nThe report needs:\n1. An overall compliance score (% of URLs passing)\n2. The trend against last week, where available\n3. Issues that need attention\n4. Recommended actions\n\nFormat: clean, professional HTML suitable for an email to senior management."
+            }
+          ]
+        }
       },
       "id": "g1000001-0001-4000-8000-000000000016",
       "name": "AI Agent - Weekly Summary",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
       "position": [
         1160,
         800
@@ -466,7 +477,8 @@
         "baseUrl": "http://winhost:11434",
         "options": {
           "temperature": 0.3,
-          "numCtx": 8192
+          "numCtx": 8192,
+          "think": false
         }
       },
       "id": "g1000001-0001-4000-8000-000000000017",
